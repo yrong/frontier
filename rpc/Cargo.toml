@@ -13,14 +13,14 @@ jsonrpc-core-client = "14.0.3"
 ethereum-types = "0.9.0"
 frontier-rpc-core = { path = "core" }
 frontier-rpc-primitives = { path = "primitives" }
-sp-runtime = { path = "../vendor/substrate/primitives/runtime" }
-sp-api = { path = "../vendor/substrate/primitives/api" }
-sp-consensus = { path = "../vendor/substrate/primitives/consensus/common" }
-sp-transaction-pool = { path = "../vendor/substrate/primitives/transaction-pool" }
-sp-storage = { path = "../vendor/substrate/primitives/storage" } 
-sc-service = { path = "../vendor/substrate/client/service" }
-sc-client-api = { path = "../vendor/substrate/client/api" }
-ethereum = { version = "0.2", features = ["codec"] }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sp-storage = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" } 
+sc-service = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+ethereum = { version = "0.2", features = ["codec"], path = "../../ethereum" }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
 rlp = "0.4"
 pallet-ethereum = "0.1"
