@@ -9,18 +9,18 @@ repository = "https://github.com/paritytech/frontier/"
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "1.3.4", features = ["derive"] }
-sp-core = { version = "2.0.0-rc6", path = "../vendor/substrate/primitives/core" }
-sp-blockchain = { version = "2.0.0-rc6", path = "../vendor/substrate/primitives/blockchain" }
-sp-runtime = { version = "2.0.0-rc6", path = "../vendor/substrate/primitives/runtime" }
-sp-api = { version = "2.0.0-rc6", path = "../vendor/substrate/primitives/api" }
-sc-client-api = { version = "2.0.0-rc6", path = "../vendor/substrate/client/api" }
-sp-block-builder = { version = "2.0.0-rc6", path = "../vendor/substrate/primitives/block-builder" }
-sp-inherents = { version = "2.0.0-rc6", path = "../vendor/substrate/primitives/inherents" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 frontier-consensus-primitives = { version = "0.1.0", path = "primitives" }
-sp-consensus = { version = "0.8.0-rc6", path = "../vendor/substrate/primitives/consensus/common" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 log = "0.4.8"
 futures = { version = "0.3.1", features = ["compat"] }
-sp-timestamp = { version = "2.0.0-rc6", path = "../vendor/substrate/primitives/timestamp" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 derive_more = "0.99.2"
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", path = "../vendor/substrate/utils/prometheus", version = "0.8.0-rc6"}
-ethereum = { version = "0.2", features = ["codec"], path = "../vendor/ethereum/" }
+ethereum = { version = "0.2", features = ["codec"], path = "../../ethereum/" }
