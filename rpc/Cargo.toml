@@ -20,6 +20,7 @@ sp-transaction-pool = { git = "https://github.com/paritytech/substrate", default
 sp-storage = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" } 
 sc-service = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
 ethereum = { version = "0.2", features = ["codec"], path = "../../ethereum" }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
 rlp = "0.4"

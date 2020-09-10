@@ -34,6 +34,7 @@ use frontier_rpc_core::types::{
 	SyncStatus, Transaction, Work, Rich, Block, BlockTransactions, VariadicValue
 };
 use frontier_rpc_primitives::{EthereumRuntimeApi, ConvertTransaction, TransactionStatus};
+use sp_blockchain::{Error as BlockChainError, HeaderMetadata, HeaderBackend};
 
 pub use frontier_rpc_core::EthApiServer;
 
@@ -172,6 +173,7 @@ fn transaction_build(
 
 impl<B, C, SC, P, CT, BE> EthApi<B, C, SC, P, CT, BE> where
 	C: ProvideRuntimeApi<B> + StorageProvider<B,BE>,
+	C: HeaderBackend<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
 	C::Api: EthereumRuntimeApi<B>,
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
@@ -227,6 +229,7 @@ impl<B, C, SC, P, CT, BE> EthApi<B, C, SC, P, CT, BE> where
 
 impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	C: ProvideRuntimeApi<B> + StorageProvider<B,BE>,
+	C: HeaderBackend<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
 	C::Api: EthereumRuntimeApi<B>,
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
@@ -296,7 +299,11 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 			.select_chain
 			.best_chain()
 			.map_err(|_| internal_err("fetch header failed"))?;
-		Ok(U256::from(header.number().clone().unique_saturated_into()))
+		println!("select_chain --> {:#?}", header.number());
+		let number = self.client.info().best_number;
+		println!("header backend --> {:#?}", number.clone());
+		Ok(U256::from(number.unique_saturated_into()))
+		// Ok(U256::from(header.number().clone().unique_saturated_into()))
 	}
 
 	fn balance(&self, address: H160, number: Option<BlockNumber>) -> Result<U256> {
