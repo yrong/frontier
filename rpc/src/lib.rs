@@ -184,10 +184,7 @@ impl<B, C, SC, P, CT, BE> EthApi<B, C, SC, P, CT, BE> where
 	CT: ConvertTransaction<<B as BlockT>::Extrinsic> + Send + Sync + 'static,
 {
 	fn native_block_number(&self, number: Option<BlockNumber>) -> Result<Option<u32>> {
-		let header = self
-			.select_chain
-			.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
+		let info = self.client.info();
 
 		let mut native_number: Option<u32> = None;
 
@@ -195,7 +192,7 @@ impl<B, C, SC, P, CT, BE> EthApi<B, C, SC, P, CT, BE> where
 			match number {
 				BlockNumber::Hash { hash, .. } => {
 					if let Ok(Some(block)) = self.client.runtime_api().block_by_hash(
-						&BlockId::Hash(header.hash()),
+						&BlockId::Hash(info.best_hash),
 						hash
 					) {
 						native_number = Some(block.header.number.as_u32());
@@ -208,7 +205,7 @@ impl<B, C, SC, P, CT, BE> EthApi<B, C, SC, P, CT, BE> where
 				},
 				BlockNumber::Latest => {
 					native_number = Some(
-						header.number().clone().unique_saturated_into() as u32
+						info.best_number.unique_saturated_into() as u32
 					);
 				},
 				BlockNumber::Earliest => {
@@ -220,7 +217,7 @@ impl<B, C, SC, P, CT, BE> EthApi<B, C, SC, P, CT, BE> where
 			};
 		} else {
 			native_number = Some(
-				header.number().clone().unique_saturated_into() as u32
+				info.best_number.unique_saturated_into() as u32
 			);
 		}
 		Ok(native_number)
@@ -253,14 +250,11 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn author(&self) -> Result<H160> {
-		let header = self.select_chain
-			.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
-
+		let hash = self.client.info().best_hash;
 		Ok(
 			self.client
 			.runtime_api()
-			.author(&BlockId::Hash(header.hash()))
+			.author(&BlockId::Hash(hash))
 			.map_err(|_| internal_err("fetch runtime chain id failed"))?.into()
 		)
 	}
@@ -270,21 +264,17 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn chain_id(&self) -> Result<Option<U64>> {
-		let header = self.select_chain.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
-		Ok(Some(self.client.runtime_api().chain_id(&BlockId::Hash(header.hash()))
+		let hash = self.client.info().best_hash;
+		Ok(Some(self.client.runtime_api().chain_id(&BlockId::Hash(hash))
 				.map_err(|_| internal_err("fetch runtime chain id failed"))?.into()))
 	}
 
 	fn gas_price(&self) -> Result<U256> {
-		let header = self
-			.select_chain
-			.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
+		let hash = self.client.info().best_hash;
 		Ok(
 			self.client
 				.runtime_api()
-				.gas_price(&BlockId::Hash(header.hash()))
+				.gas_price(&BlockId::Hash(hash))
 				.map_err(|_| internal_err("fetch runtime chain id failed"))?
 				.into(),
 		)
@@ -295,15 +285,8 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn block_number(&self) -> Result<U256> {
-		let header = self
-			.select_chain
-			.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
-		println!("select_chain --> {:#?}", header.number());
 		let number = self.client.info().best_number;
-		println!("header backend --> {:#?}", number.clone());
 		Ok(U256::from(number.unique_saturated_into()))
-		// Ok(U256::from(header.number().clone().unique_saturated_into()))
 	}
 
 	fn balance(&self, address: H160, number: Option<BlockNumber>) -> Result<U256> {
@@ -337,11 +320,9 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn block_by_hash(&self, hash: H256, full: bool) -> Result<Option<RichBlock>> {
-		let header = self.select_chain.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
-
+		let best_hash = self.client.info().best_hash;
 		if let Ok((Some(block), statuses)) = self.client.runtime_api().block_by_hash_with_statuses(
-			&BlockId::Hash(header.hash()),
+			&BlockId::Hash(best_hash),
 			hash
 		) {
 			Ok(Some(rich_block_build(block, statuses, Some(hash), full)))
@@ -351,11 +332,10 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn block_by_number(&self, number: BlockNumber, full: bool) -> Result<Option<RichBlock>> {
-		let header = self.select_chain.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
+		let hash = self.client.info().best_hash;
 		if let Ok(Some(native_number)) = self.native_block_number(Some(number)) {
 			if let Ok((Some(block), statuses)) = self.client.runtime_api().block_by_number(
-				&BlockId::Hash(header.hash()),
+				&BlockId::Hash(hash),
 				native_number
 			) {
 				return Ok(Some(rich_block_build(block, statuses, None, full)));
@@ -378,11 +358,9 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn block_transaction_count_by_hash(&self, hash: H256) -> Result<Option<U256>> {
-		let header = self.select_chain.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
-
+		let best_hash = self.client.info().best_hash;
 		let result = match self.client.runtime_api()
-			.block_transaction_count_by_hash(&BlockId::Hash(header.hash()), hash) {
+			.block_transaction_count_by_hash(&BlockId::Hash(best_hash), hash) {
 			Ok(result) => result,
 			Err(_) => return Ok(None)
 		};
@@ -390,13 +368,11 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn block_transaction_count_by_number(&self, number: BlockNumber) -> Result<Option<U256>> {
-		let header = self.select_chain.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
-
+		let hash = self.client.info().best_hash;
 		let mut result = None;
 		if let Ok(Some(native_number)) = self.native_block_number(Some(number)) {
 			result = match self.client.runtime_api()
-				.block_transaction_count_by_number(&BlockId::Hash(header.hash()), native_number) {
+				.block_transaction_count_by_number(&BlockId::Hash(hash), native_number) {
 				Ok(result) => result,
 				Err(_) => None
 			};
@@ -435,17 +411,11 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 		let transaction_hash = H256::from_slice(
 			Keccak256::digest(&rlp::encode(&transaction)).as_slice()
 		);
-		let header = match self.select_chain.best_chain() {
-			Ok(header) => header,
-			Err(_) => return Box::new(
-				future::result(Err(internal_err("fetch header failed")))
-			),
-		};
-		let best_block_hash = header.hash();
+		let hash = self.client.info().best_hash;
 		Box::new(
 			self.pool
 				.submit_one(
-					&BlockId::hash(best_block_hash),
+					&BlockId::hash(hash),
 					TransactionSource::Local,
 					self.convert_transaction.convert_transaction(transaction),
 				)
@@ -460,11 +430,7 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn call(&self, request: CallRequest, _: Option<BlockNumber>) -> Result<Bytes> {
-		let header = self
-			.select_chain
-			.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
-
+		let hash = self.client.info().best_hash;
 		let from = request.from.unwrap_or_default();
 		let to = request.to.unwrap_or_default();
 		let gas_price = request.gas_price;
@@ -475,7 +441,7 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 
 		let (ret, _) = self.client.runtime_api()
 			.call(
-				&BlockId::Hash(header.hash()),
+				&BlockId::Hash(hash),
 				from,
 				data,
 				value,
@@ -491,11 +457,7 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn estimate_gas(&self, request: CallRequest, _: Option<BlockNumber>) -> Result<U256> {
-		let header = self
-			.select_chain
-			.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
-
+		let hash = self.client.info().best_hash;
 		let from = request.from.unwrap_or_default();
 		let gas_price = request.gas_price;
 		let gas_limit = request.gas.unwrap_or(U256::max_value());
@@ -505,7 +467,7 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 
 		let (_, used_gas) = self.client.runtime_api()
 			.call(
-				&BlockId::Hash(header.hash()),
+				&BlockId::Hash(hash),
 				from,
 				data,
 				value,
@@ -524,13 +486,9 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn transaction_by_hash(&self, hash: H256) -> Result<Option<Transaction>> {
-		let header = self
-			.select_chain
-			.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
-
+		let best_hash = self.client.info().best_hash;
 		if let Ok(Some((transaction, block, status, _receipt))) = self.client.runtime_api()
-			.transaction_by_hash(&BlockId::Hash(header.hash()), hash) {
+			.transaction_by_hash(&BlockId::Hash(best_hash), hash) {
 			return Ok(Some(transaction_build(
 				transaction,
 				block,
@@ -545,15 +503,11 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 		hash: H256,
 		index: Index,
 	) -> Result<Option<Transaction>> {
-		let header = self
-			.select_chain
-			.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
-
+		let best_hash = self.client.info().best_hash;
 		let index_param = index.value() as u32;
 
 		if let Ok(Some((transaction, block, status))) = self.client.runtime_api()
-			.transaction_by_block_hash_and_index(&BlockId::Hash(header.hash()), hash, index_param) {
+			.transaction_by_block_hash_and_index(&BlockId::Hash(best_hash), hash, index_param) {
 			return Ok(Some(transaction_build(
 				transaction,
 				block,
@@ -568,17 +522,12 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 		number: BlockNumber,
 		index: Index,
 	) -> Result<Option<Transaction>> {
-		let header = self
-			.select_chain
-			.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
-
+		let hash = self.client.info().best_hash;
 		let index_param = index.value() as u32;
-
 		if let Ok(Some(native_number)) = self.native_block_number(Some(number)) {
 			if let Ok(Some((transaction, block, status))) = self.client.runtime_api()
 				.transaction_by_block_number_and_index(
-					&BlockId::Hash(header.hash()),
+					&BlockId::Hash(hash),
 					native_number,
 					index_param) {
 				return Ok(Some(transaction_build(
@@ -592,10 +541,9 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn transaction_receipt(&self, hash: H256) -> Result<Option<Receipt>> {
-		let header = self.select_chain.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
+		let best_hash = self.client.info().best_hash;
 		if let Ok(Some((_transaction, block, status, receipts))) = self.client.runtime_api()
-			.transaction_by_hash(&BlockId::Hash(header.hash()), hash) {
+			.transaction_by_hash(&BlockId::Hash(best_hash), hash) {
 
 			let block_hash = H256::from_slice(
 				Keccak256::digest(&rlp::encode(&block.header)).as_slice()
@@ -681,9 +629,7 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn logs(&self, filter: Filter) -> Result<Vec<Log>> {
-		let header = self.select_chain.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
-
+		let hash = self.client.info().best_hash;
 		let mut from_block = None;
 		if let Some(from_block_input) = filter.from_block {
 			if let Ok(Some(block_number)) = self.native_block_number(Some(from_block_input)) {
@@ -716,7 +662,7 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 
 		if let Ok(logs) = self.client.runtime_api()
 			.logs(
-				&BlockId::Hash(header.hash()),
+				&BlockId::Hash(hash),
 				from_block,
 				to_block,
 				filter.block_hash,
