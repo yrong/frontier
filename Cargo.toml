@@ -11,4 +11,4 @@ members = [
 exclude = ["vendor"]
 
 [patch.crates-io]
-ethereum = { path = "vendor/ethereum" }
+pallet-evm = { path = "vendor/substrate/frame/evm" }
