@@ -20,7 +20,7 @@ use ethereum::{Block as EthereumBlock, Transaction as EthereumTransaction};
 use ethereum_types::{H160, H256, H64, U256, U64};
 use jsonrpc_core::{BoxFuture, Result, ErrorCode, Error, futures::future::{self, Future}};
 use futures::future::TryFutureExt;
-use sp_runtime::traits::{Block as BlockT, Header as _, UniqueSaturatedInto};
+use sp_runtime::traits::{Block as BlockT, UniqueSaturatedInto};
 use sp_runtime::transaction_validity::TransactionSource;
 use sp_api::{ProvideRuntimeApi, BlockId};
 use sp_consensus::SelectChain;
@@ -238,11 +238,11 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 {
 	/// Returns protocol version encoded as a string (quotes are necessary).
 	fn protocol_version(&self) -> Result<String> {
-		unimplemented!("protocol version");
+		Ok("43".into())
 	}
 
 	fn syncing(&self) -> Result<SyncStatus> {
-		unimplemented!("syncing");
+		Ok(SyncStatus::None)
 	}
 
 	fn hashrate(&self) -> Result<U256> {
@@ -300,10 +300,6 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 			);
 		}
 		Ok(U256::zero())
-	}
-
-	fn proof(&self, _: H160, _: Vec<H256>, _: Option<BlockNumber>) -> BoxFuture<EthAccount> {
-		unimplemented!("proof");
 	}
 
 	fn storage_at(&self, address: H160, index: U256, number: Option<BlockNumber>) -> Result<H256> {
@@ -423,10 +419,6 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 				.map(move |_| transaction_hash)
 				.map_err(|_| internal_err("submit transaction to pool failed"))
 		)
-	}
-
-	fn submit_transaction(&self, _: Bytes) -> Result<H256> {
-		unimplemented!("submit_transaction");
 	}
 
 	fn call(&self, request: CallRequest, _: Option<BlockNumber>) -> Result<Bytes> {

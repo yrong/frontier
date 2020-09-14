@@ -71,10 +71,6 @@ pub trait EthApi {
 	#[rpc(name = "eth_getBalance")]
 	fn balance(&self, _: H160, _: Option<BlockNumber>) -> Result<U256>;
 
-	/// Returns the account- and storage-values of the specified account including the Merkle-proof
-	#[rpc(name = "eth_getProof")]
-	fn proof(&self, _: H160, _: Vec<H256>, _: Option<BlockNumber>) -> BoxFuture<EthAccount>;
-
 	/// Returns content of the storage at given address.
 	#[rpc(name = "eth_getStorageAt")]
 	fn storage_at(&self, _: H160, _: U256, _: Option<BlockNumber>) -> Result<H256>;
@@ -114,10 +110,6 @@ pub trait EthApi {
 	/// Sends signed transaction, returning its hash.
 	#[rpc(name = "eth_sendRawTransaction")]
 	fn send_raw_transaction(&self, _: Bytes) -> BoxFuture<H256>;
-
-	/// @alias of `eth_sendRawTransaction`.
-	#[rpc(name = "eth_submitTransaction")]
-	fn submit_transaction(&self, _: Bytes) -> Result<H256>;
 
 	/// Call contract, returning the output data.
 	#[rpc(name = "eth_call")]
