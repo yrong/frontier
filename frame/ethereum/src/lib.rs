@@ -23,7 +23,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use frame_support::{
-	decl_module, decl_storage, decl_error, decl_event, ensure,
+	decl_module, decl_storage, decl_error, decl_event,
 	traits::Get, traits::FindAuthor
 };
 use sp_std::prelude::*;
@@ -31,10 +31,14 @@ use frame_system::ensure_none;
 use ethereum_types::{H160, H64, H256, U256, Bloom};
 use sp_runtime::{
 	traits::UniqueSaturatedInto,
-	transaction_validity::{TransactionValidity, TransactionSource, ValidTransaction}
+	transaction_validity::{TransactionValidity, TransactionSource, ValidTransaction, InvalidTransaction},
+	generic::DigestItem,
+	DispatchResult,
 };
-use rlp;
+use evm::{ExitError, ExitRevert, ExitFatal, ExitReason};
 use sha3::{Digest, Keccak256};
+use codec::Encode;
+use frontier_consensus_primitives::{FRONTIER_ENGINE_ID, ConsensusLog};
 
 pub use frontier_rpc_primitives::TransactionStatus;
 pub use ethereum::{Transaction, Log, Block, Receipt, TransactionAction};
@@ -58,21 +62,19 @@ pub trait Trait: frame_system::Trait<Hash=H256> + pallet_balances::Trait + palle
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Example {
-		/// Block hash to block body and block receipt map.
-		BlocksAndReceipts: map hasher(blake2_128_concat)
-			H256 => Option<(ethereum::Block, Vec<ethereum::Receipt>)>;
-		/// Block number to block hash map.
-		BlockNumbers: map hasher(blake2_128_concat) T::BlockNumber => H256;
 		/// Current building block's transactions and receipts.
-		PendingTransactionsAndReceipts: Vec<(ethereum::Transaction, ethereum::Receipt)>;
-		/// Transaction hash to transaction status map.
-		TransactionStatuses: map hasher(blake2_128_concat) H256 => Option<TransactionStatus>;
-		/// Transaction hash to transaction map.
-		Transactions: map hasher(blake2_128_concat) H256 => Option<(H256, u32)>;
+		Pending: Vec<(ethereum::Transaction, TransactionStatus, ethereum::Receipt)>;
+
+		/// The current Ethereum block.
+		CurrentBlock: Option<ethereum::Block>;
+		/// The current Ethereum receipts.
+		CurrentReceipts: Option<Vec<ethereum::Receipt>>;
+		/// The current transaction statuses.
+		CurrentTransactionStatuses: Option<Vec<TransactionStatus>>;
 	}
 	add_extra_genesis {
 		build(|_config: &GenesisConfig| {
-			<Module<T>>::store_block(T::BlockNumber::from(0));
+			<Module<T>>::store_block();
 		});
 	}
 }
@@ -86,8 +88,51 @@ decl_event!(
 decl_error! {
 	/// Ethereum pallet errors.
 	pub enum Error for Module<T: Trait> {
+		/// Signature is invalid.
+		InvalidSignature,
 		/// Transaction signed with wrong chain id
 		InvalidChainId,
+		/// Trying to pop from an empty stack.
+		StackUnderflow,
+		/// Trying to push into a stack over stack limit.
+		StackOverflow,
+		/// Jump destination is invalid.
+		InvalidJump,
+		/// An opcode accesses memory region, but the region is invalid.
+		InvalidRange,
+		/// Encountered the designated invalid opcode.
+		DesignatedInvalid,
+		/// Call stack is too deep (runtime).
+		CallTooDeep,
+		/// Create opcode encountered collision (runtime).
+		CreateCollision,
+		/// Create init code exceeds limit (runtime).
+		CreateContractLimit,
+		///	An opcode accesses external information, but the request is off offset
+		///	limit (runtime).
+		OutOfOffset,
+		/// Execution runs out of gas (runtime).
+		OutOfGas,
+		/// Not enough fund to start the execution (runtime).
+		OutOfFund,
+		/// PC underflowed (unused).
+		PCUnderflow,
+		/// Attempt to create an empty account (runtime, unused).
+		CreateEmpty,
+		/// Other normal errors.
+		ExitErrorOther,
+		/// The operation is not supported.
+		NotSupported,
+		/// The trap (interrupt) is unhandled.
+		UnhandledInterrupt,
+		/// The environment explictly set call errors as fatal error.
+		CallErrorAsFatal,
+		/// Other fatal errors.
+		ExitFatalOther,
+		/// Machine encountered an explict revert.
+		Reverted,
+		/// If call itself fails
+		FailedExecution
 	}
 }
 
@@ -102,47 +147,93 @@ decl_module! {
 		fn transact(origin, transaction: ethereum::Transaction) {
 			ensure_none(origin)?;
 
-			ensure!(
-				transaction.signature.chain_id().unwrap_or_default() == T::ChainId::get(),
-				Error::<T>::InvalidChainId
-			);
-			let mut sig = [0u8; 65];
-			let mut msg = [0u8; 32];
-			sig[0..32].copy_from_slice(&transaction.signature.r()[..]);
-			sig[32..64].copy_from_slice(&transaction.signature.s()[..]);
-			sig[64] = transaction.signature.standard_v();
-			msg.copy_from_slice(&transaction.message_hash(Some(T::ChainId::get()))[..]);
+			let source = Self::recover_signer(&transaction).ok_or_else(|| Error::<T>::InvalidSignature)?;
 
-			let pubkey = sp_io::crypto::secp256k1_ecdsa_recover(&sig, &msg)
-				.map_err(|_| "Recover public key failed")?;
-			let source = H160::from(H256::from_slice(Keccak256::digest(&pubkey).as_slice()));
-
-			Self::execute(source, transaction);
+			Self::execute(source, transaction)?;
 		}
 
 		fn on_finalize(n: T::BlockNumber) {
-			<Module<T>>::store_block(n);
+			<Module<T>>::store_block();
 		}
 	}
+}
+
+#[repr(u8)]
+enum TransactionValidationError {
+	#[allow (dead_code)]
+	UnknownError,
+	InvalidChainId,
+	InvalidSignature,
 }
 
 impl<T: Trait> frame_support::unsigned::ValidateUnsigned for Module<T> {
 	type Call = Call<T>;
 
 	fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-		ValidTransaction::with_tag_prefix("Ethereum")
-			.and_provides(call)
-			.build()
+		if let Call::transact(transaction) = call {
+			if transaction.signature.chain_id().unwrap_or_default() != T::ChainId::get() {
+				return InvalidTransaction::Custom(TransactionValidationError::InvalidChainId as u8).into();
+			}
+
+			let origin = Self::recover_signer(&transaction)
+				.ok_or_else(|| InvalidTransaction::Custom(TransactionValidationError::InvalidSignature as u8))?;
+
+			let account_data = pallet_evm::Module::<T>::account_basic(&origin);
+
+			if transaction.nonce < account_data.nonce {
+				return InvalidTransaction::Stale.into();
+			}
+			if transaction.nonce > account_data.nonce {
+				return InvalidTransaction::Future.into();
+			}
+
+			let fee = transaction.gas_price.saturating_mul(transaction.gas_limit);
+
+			if account_data.balance < fee {
+				return InvalidTransaction::Payment.into();
+			}
+
+			let mut builder = ValidTransaction::with_tag_prefix("Ethereum")
+				.and_provides((&account_data, account_data.nonce));
+
+			if let Some(prev_nonce) = account_data.nonce.checked_sub(1.into()) {
+				builder = builder.and_requires((account_data, prev_nonce))
+			}
+
+			builder.build()
+		} else {
+			Err(InvalidTransaction::Call.into())
+		}
 	}
 }
 
 impl<T: Trait> Module<T> {
-	fn store_block(n: T::BlockNumber) {
-		let transactions_and_receipts = PendingTransactionsAndReceipts::take();
-		let (transactions, receipts): (Vec<_>, Vec<_>) =
-			transactions_and_receipts.into_iter().unzip();
-		let ommers = Vec::<ethereum::Header>::new();
 
+	fn recover_signer(transaction: &ethereum::Transaction) -> Option<H160> {
+		let mut sig = [0u8; 65];
+		let mut msg = [0u8; 32];
+		sig[0..32].copy_from_slice(&transaction.signature.r()[..]);
+		sig[32..64].copy_from_slice(&transaction.signature.s()[..]);
+		sig[64] = transaction.signature.standard_v();
+		msg.copy_from_slice(&transaction.message_hash(Some(T::ChainId::get()))[..]);
+
+		let pubkey = sp_io::crypto::secp256k1_ecdsa_recover(&sig, &msg).ok()?;
+		Some(H160::from(H256::from_slice(Keccak256::digest(&pubkey).as_slice())))
+	}
+
+	fn store_block() {
+		let pending = Pending::take();
+
+		let mut transactions = Vec::new();
+		let mut statuses = Vec::new();
+		let mut receipts = Vec::new();
+		for (transaction, status, receipt) in pending {
+			transactions.push(transaction);
+			statuses.push(status);
+			receipts.push(receipt);
+		}
+
+		let ommers = Vec::<ethereum::Header>::new();
 		let header = ethereum::Header {
 			parent_hash: frame_system::Module::<T>::parent_hash(),
 			ommers_hash: H256::from_slice(
@@ -180,20 +271,27 @@ impl<T: Trait> Module<T> {
 			ommers,
 		};
 
+		let mut transaction_hashes = Vec::new();
+
 		for t in &transactions {
 			let transaction_hash = H256::from_slice(
 				Keccak256::digest(&rlp::encode(t)).as_slice()
 			);
-			if let Some(status) = TransactionStatuses::get(transaction_hash) {
-				Transactions::insert(
-					transaction_hash,
-					(hash, status.transaction_index)
-				);
-			}
+			transaction_hashes.push(transaction_hash);
 		}
 
-		BlocksAndReceipts::insert(hash, (block, receipts));
-		BlockNumbers::<T>::insert(n, hash);
+		CurrentBlock::put(block.clone());
+		CurrentReceipts::put(receipts.clone());
+		CurrentTransactionStatuses::put(statuses.clone());
+
+		let digest = DigestItem::<T::Hash>::Consensus(
+			FRONTIER_ENGINE_ID,
+			ConsensusLog::EndBlock {
+				block_hash: hash,
+				transaction_hashes,
+			}.encode(),
+		);
+		frame_system::Module::<T>::deposit_log(digest.into());
 	}
 
 	/// Get the author using the FindAuthor trait.
@@ -204,221 +302,42 @@ impl<T: Trait> Module<T> {
 		T::FindAuthor::find_author(pre_runtime_digests).unwrap_or_default()
 	}
 
-	/// Get the transaction status with given transaction hash.
-	pub fn transaction_status(hash: H256) -> Option<TransactionStatus> {
-		TransactionStatuses::get(hash)
-	}
-
-	/// Get the transaction with given transaction hash.
-	pub fn transaction_by_hash(hash: H256) -> Option<(
-		ethereum::Transaction,
-		ethereum::Block,
-		TransactionStatus,
-		Vec<ethereum::Receipt>
-	)> {
-		let (block_hash, transaction_index) = Transactions::get(hash)?;
-		let transaction_status = TransactionStatuses::get(hash)?;
-		let (block, receipts) = BlocksAndReceipts::get(block_hash)?;
-		let transaction = &block.transactions[transaction_index as usize];
-		Some((transaction.clone(), block, transaction_status, receipts))
-	}
-
-	/// Get transaction by block hash and index.
-	pub fn transaction_by_block_hash_and_index(
-		hash: H256,
-		index: u32
-	) -> Option<(
-		ethereum::Transaction,
-		ethereum::Block,
-		TransactionStatus
-	)> {
-		let (block,_receipt) = BlocksAndReceipts::get(hash)?;
-		if index < block.transactions.len() as u32 {
-			let transaction = &block.transactions[index as usize];
-			let transaction_hash = H256::from_slice(
-				Keccak256::digest(&rlp::encode(transaction)).as_slice()
-			);
-			let transaction_status = TransactionStatuses::get(transaction_hash)?;
-			Some((transaction.clone(), block, transaction_status))
-		} else {
-			None
-		}
-	}
-
-	/// Get transaction by block number and index.
-	pub fn transaction_by_block_number_and_index(
-		number: T::BlockNumber,
-		index: u32
-	) -> Option<(
-		ethereum::Transaction,
-		ethereum::Block,
-		TransactionStatus
-	)> {
-		if <BlockNumbers<T>>::contains_key(number) {
-			let hash = <BlockNumbers<T>>::get(number);
-			return <Module<T>>::transaction_by_block_hash_and_index(hash, index);
-		}
-		None
+	/// Get the transaction status with given index.
+	pub fn current_transaction_statuses() -> Option<Vec<TransactionStatus>> {
+		CurrentTransactionStatuses::get()
 	}
 
 	/// Get block by number.
-	pub fn block_by_number(number: T::BlockNumber) -> Option<ethereum::Block> {
-		if <BlockNumbers<T>>::contains_key(number) {
-			let hash = <BlockNumbers<T>>::get(number);
-			if let Some((block, _receipt)) = BlocksAndReceipts::get(hash) {
-				return Some(block)
-			}
-		}
-		None
+	pub fn current_block() -> Option<ethereum::Block> {
+		CurrentBlock::get()
 	}
 
-	/// Get block by hash.
-	pub fn block_by_hash(hash: H256) -> Option<ethereum::Block> {
-		if let Some((block, _receipt)) = BlocksAndReceipts::get(hash) {
-			return Some(block)
-		}
-		None
-	}
-
-	/// Get block transaction status of the given block.
-	pub fn block_transaction_statuses(
-		block: &Block
-	) -> Vec<Option<TransactionStatus>> {
-		block.transactions.iter().map(|transaction|{
-			let transaction_hash = H256::from_slice(
-				Keccak256::digest(&rlp::encode(transaction)).as_slice()
-			);
-			<Module<T>>::transaction_status(transaction_hash)
-		}).collect()
-	}
-
-	fn block_logs(
-		block_hash: H256,
-		address: Option<H160>,
-		topic: Option<Vec<H256>>
-	) -> Option<Vec<(
-		H160, // address
-		Vec<H256>, // topics
-		Vec<u8>, // data
-		Option<H256>, // block_hash
-		Option<U256>, // block_number
-		Option<H256>, // transaction_hash
-		Option<U256>, // transaction_index
-		Option<U256>, // log index in block
-		Option<U256>, // log index in transaction
-	)>> {
-		let mut output = vec![];
-		let (block, receipts) = BlocksAndReceipts::get(block_hash)?;
-		let mut block_log_index: u32 = 0;
-		for (index, receipt) in receipts.iter().enumerate() {
-			let logs = receipt.logs.clone();
-			let mut transaction_log_index: u32 = 0;
-			let transaction = &block.transactions[index as usize];
-			let transaction_hash = H256::from_slice(
-				Keccak256::digest(&rlp::encode(transaction)).as_slice()
-			);
-			for log in logs {
-				let mut add: bool = false;
-				if let (Some(address), Some(topics)) = (address.clone(), topic.clone()) {
-					if address == log.address && log.topics.starts_with(&topics) {
-						add = true;
-					}
-				} else if let Some(address) = address {
-					if address == log.address {
-						add = true;
-					}
-				} else if let Some(topics) = &topic {
-					if log.topics.starts_with(&topics) {
-						add = true;
-					}
-				}
-				if add {
-					output.push((
-						log.address.clone(),
-						log.topics.clone(),
-						log.data.clone(),
-						Some(H256::from_slice(
-							Keccak256::digest(&rlp::encode(&block.header)).as_slice()
-						)),
-						Some(block.header.number.clone()),
-						Some(transaction_hash),
-						Some(U256::from(index)),
-						Some(U256::from(block_log_index)),
-						Some(U256::from(transaction_log_index))
-					));
-				}
-				transaction_log_index += 1;
-				block_log_index += 1;
-			}
-		}
-		Some(output)
-	}
-
-	pub fn filtered_logs(
-		from_block: Option<u32>,
-		to_block: Option<u32>,
-		block_hash: Option<H256>,
-		address: Option<H160>,
-		topic: Option<Vec<H256>>,
-	) -> Option<Vec<(
-		H160, // address
-		Vec<H256>, // topics
-		Vec<u8>, // data
-		Option<H256>, // block_hash
-		Option<U256>, // block_number
-		Option<H256>, // transaction_hash
-		Option<U256>, // transaction_index
-		Option<U256>, // log index in block
-		Option<U256>, // log index in transaction
-	)>> {
-		if let Some(block_hash) = block_hash {
-			<Module<T>>::block_logs(
-				block_hash,
-				address,
-				topic
-			)
-		} else if let (Some(from_block), Some(to_block)) = (from_block, to_block) {
-			let mut output = vec![];
-			if from_block >= to_block {
-				for number in from_block..to_block {
-					let block_number = T::BlockNumber::from(number);
-					if <BlockNumbers<T>>::contains_key(block_number) {
-						let hash = <BlockNumbers<T>>::get(block_number);
-						output.extend(<Module<T>>::block_logs(
-							hash,
-							address.clone(),
-							topic.clone()
-						).unwrap())
-					}
-				}
-				Some(output)
-			} else {
-				None
-			}
-		} else {
-			None
-		}
+	/// Get receipts by number.
+	pub fn current_receipts() -> Option<Vec<ethereum::Receipt>> {
+		CurrentReceipts::get()
 	}
 
 	/// Execute an Ethereum transaction, ignoring transaction signatures.
-	pub fn execute(source: H160, transaction: ethereum::Transaction) {
+	pub fn execute(source: H160, transaction: ethereum::Transaction) -> DispatchResult {
 		let transaction_hash = H256::from_slice(
 			Keccak256::digest(&rlp::encode(&transaction)).as_slice()
 		);
-		let transaction_index = PendingTransactionsAndReceipts::get().len() as u32;
+		let transaction_index = Pending::get().len() as u32;
 
 		let status = match transaction.action {
 			ethereum::TransactionAction::Call(target) => {
-				pallet_evm::Module::<T>::execute_call(
-					source,
-					target,
-					transaction.input.clone(),
-					transaction.value,
-					transaction.gas_limit.low_u32(),
-					Some(transaction.gas_price),
-					Some(transaction.nonce),
-					true,
-				).unwrap(); // TODO: handle error
+				Self::handle_exec(
+					pallet_evm::Module::<T>::execute_call(
+						source,
+						target,
+						transaction.input.clone(),
+						transaction.value,
+						transaction.gas_limit.low_u32(),
+						transaction.gas_price,
+						Some(transaction.nonce),
+						true,
+					)?
+				)?;
 
 				TransactionStatus {
 					transaction_hash,
@@ -431,15 +350,17 @@ impl<T: Trait> Module<T> {
 				}
 			},
 			ethereum::TransactionAction::Create => {
-				let contract_address = pallet_evm::Module::<T>::execute_create(
-					source,
-					transaction.input.clone(),
-					transaction.value,
-					transaction.gas_limit.low_u32(),
-					Some(transaction.gas_price),
-					Some(transaction.nonce),
-					true,
-				).unwrap().1; // TODO: handle error
+				let contract_address = Self::handle_exec(
+					pallet_evm::Module::<T>::execute_create(
+						source,
+						transaction.input.clone(),
+						transaction.value,
+						transaction.gas_limit.low_u32(),
+						transaction.gas_price,
+						Some(transaction.nonce),
+						true,
+					)?
+				)?.1;
 
 				TransactionStatus {
 					transaction_hash,
@@ -453,8 +374,6 @@ impl<T: Trait> Module<T> {
 			},
 		};
 
-		TransactionStatuses::insert(transaction_hash, status);
-
 		let receipt = ethereum::Receipt {
 			state_root: H256::default(), // TODO: should be okay / error status.
 			used_gas: U256::default(), // TODO: set this.
@@ -462,6 +381,47 @@ impl<T: Trait> Module<T> {
 			logs: Vec::new(), // TODO: set this.
 		};
 
-		PendingTransactionsAndReceipts::append((transaction, receipt));
+		Pending::append((transaction, status, receipt));
+
+		Ok(())
+	}
+
+	fn handle_exec<R>(res: (ExitReason, R, U256)) -> Result<(ExitReason, R, U256), Error<T>> {
+		match res.0 {
+			ExitReason::Succeed(_s) => Ok(res),
+			ExitReason::Error(e) => Err(Self::parse_exit_error(e)),
+			ExitReason::Revert(e) => {
+				match e {
+					ExitRevert::Reverted => Err(Error::<T>::Reverted),
+				}
+			},
+			ExitReason::Fatal(e) => {
+				match e {
+					ExitFatal::NotSupported => Err(Error::<T>::NotSupported),
+					ExitFatal::UnhandledInterrupt => Err(Error::<T>::UnhandledInterrupt),
+					ExitFatal::CallErrorAsFatal(e_error) => Err(Self::parse_exit_error(e_error)),
+					ExitFatal::Other(_s) => Err(Error::<T>::ExitFatalOther),
+				}
+			},
+		}
+	}
+
+	fn parse_exit_error(exit_error: ExitError) -> Error<T> {
+		match exit_error {
+			ExitError::StackUnderflow => return Error::<T>::StackUnderflow,
+			ExitError::StackOverflow => return Error::<T>::StackOverflow,
+			ExitError::InvalidJump => return Error::<T>::InvalidJump,
+			ExitError::InvalidRange => return Error::<T>::InvalidRange,
+			ExitError::DesignatedInvalid => return Error::<T>::DesignatedInvalid,
+			ExitError::CallTooDeep => return Error::<T>::CallTooDeep,
+			ExitError::CreateCollision => return Error::<T>::CreateCollision,
+			ExitError::CreateContractLimit => return Error::<T>::CreateContractLimit,
+			ExitError::OutOfOffset => return Error::<T>::OutOfOffset,
+			ExitError::OutOfGas => return Error::<T>::OutOfGas,
+			ExitError::OutOfFund => return Error::<T>::OutOfFund,
+			ExitError::PCUnderflow => return Error::<T>::PCUnderflow,
+			ExitError::CreateEmpty => return Error::<T>::CreateEmpty,
+			ExitError::Other(_s) => return Error::<T>::ExitErrorOther,
+		}
 	}
 }
