@@ -33,12 +33,8 @@ use frontier_rpc_core::types::{
 	BlockNumber, Bytes, CallRequest, EthAccount, Filter, Index, Log, Receipt, RichBlock,
 	SyncStatus, SyncInfo, Transaction, Work, Rich, Block, BlockTransactions, VariadicValue
 };
-<<<<<<< HEAD
-use frontier_rpc_primitives::{EthereumRuntimeApi, ConvertTransaction, TransactionStatus};
-use sp_blockchain::{Error as BlockChainError, HeaderMetadata, HeaderBackend};
-=======
 use frontier_rpc_primitives::{EthereumRuntimeRPCApi, ConvertTransaction, TransactionStatus};
->>>>>>> upstream/master
+use sp_blockchain::{Error as BlockChainError, HeaderMetadata, HeaderBackend};
 
 pub use frontier_rpc_core::{EthApiServer, NetApiServer};
 
@@ -190,14 +186,9 @@ fn transaction_build(
 }
 
 impl<B, C, SC, P, CT, BE> EthApi<B, C, SC, P, CT, BE> where
-<<<<<<< HEAD
-	C: ProvideRuntimeApi<B> + StorageProvider<B,BE>,
+	C: ProvideRuntimeApi<B> + StorageProvider<B,BE> + AuxStore,
 	C: HeaderBackend<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
-	C::Api: EthereumRuntimeApi<B>,
-=======
-	C: ProvideRuntimeApi<B> + StorageProvider<B, BE> + AuxStore,
 	C::Api: EthereumRuntimeRPCApi<B>,
->>>>>>> upstream/master
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
 	B: BlockT<Hash=H256> + Send + Sync + 'static,
@@ -206,46 +197,6 @@ impl<B, C, SC, P, CT, BE> EthApi<B, C, SC, P, CT, BE> where
 	P: TransactionPool<Block=B> + Send + Sync + 'static,
 	CT: ConvertTransaction<<B as BlockT>::Extrinsic> + Send + Sync + 'static,
 {
-<<<<<<< HEAD
-	fn native_block_number(&self, number: Option<BlockNumber>) -> Result<Option<u32>> {
-		let info = self.client.info();
-
-		let mut native_number: Option<u32> = None;
-
-		if let Some(number) = number {
-			match number {
-				BlockNumber::Hash { hash, .. } => {
-					if let Ok(Some(block)) = self.client.runtime_api().block_by_hash(
-						&BlockId::Hash(info.best_hash),
-						hash
-					) {
-						native_number = Some(block.header.number.as_u32());
-					}
-				},
-				BlockNumber::Num(_) => {
-					if let Some(number) = number.to_min_block_num() {
-						native_number = Some(number.unique_saturated_into());
-					}
-				},
-				BlockNumber::Latest => {
-					native_number = Some(
-						info.best_number.unique_saturated_into() as u32
-					);
-				},
-				BlockNumber::Earliest => {
-					native_number = Some(0);
-				},
-				BlockNumber::Pending => {
-					native_number = None;
-				}
-			};
-		} else {
-			native_number = Some(
-				info.best_number.unique_saturated_into() as u32
-			);
-		}
-		Ok(native_number)
-=======
 	fn native_block_id(&self, number: Option<BlockNumber>) -> Result<Option<BlockId<B>>> {
 		Ok(match number.unwrap_or(BlockNumber::Latest) {
 			BlockNumber::Hash { hash, .. } => {
@@ -259,9 +210,7 @@ impl<B, C, SC, P, CT, BE> EthApi<B, C, SC, P, CT, BE> where
 			},
 			BlockNumber::Latest => {
 				Some(BlockId::Hash(
-					self.select_chain.best_chain()
-						.map_err(|err| internal_err(format!("fetch header failed: {:?}", err)))?
-						.hash()
+					self.client.info().best_hash
 				))
 			},
 			BlockNumber::Earliest => {
@@ -271,19 +220,13 @@ impl<B, C, SC, P, CT, BE> EthApi<B, C, SC, P, CT, BE> where
 				None
 			}
 		})
->>>>>>> upstream/master
 	}
 }
 
 impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
-<<<<<<< HEAD
-	C: ProvideRuntimeApi<B> + StorageProvider<B,BE>,
-	C: HeaderBackend<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
-	C::Api: EthereumRuntimeApi<B>,
-=======
 	C: ProvideRuntimeApi<B> + StorageProvider<B, BE> + AuxStore,
+	C: HeaderBackend<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
 	C::Api: EthereumRuntimeRPCApi<B>,
->>>>>>> upstream/master
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
 	B: BlockT<Hash=H256> + Send + Sync + 'static,
@@ -318,24 +261,12 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn author(&self) -> Result<H160> {
-<<<<<<< HEAD
 		let hash = self.client.info().best_hash;
 		Ok(
 			self.client
 			.runtime_api()
 			.author(&BlockId::Hash(hash))
-			.map_err(|_| internal_err("fetch runtime chain id failed"))?.into()
-=======
-		let header = self.select_chain
-			.best_chain()
-			.map_err(|err| internal_err(format!("fetch header failed: {:?}", err)))?;
-
-		Ok(
-			self.client
-			.runtime_api()
-			.author(&BlockId::Hash(header.hash()))
 			.map_err(|err| internal_err(format!("fetch runtime chain id failed: {:?}", err)))?.into()
->>>>>>> upstream/master
 		)
 	}
 
@@ -344,10 +275,9 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn chain_id(&self) -> Result<Option<U64>> {
-<<<<<<< HEAD
 		let hash = self.client.info().best_hash;
 		Ok(Some(self.client.runtime_api().chain_id(&BlockId::Hash(hash))
-				.map_err(|_| internal_err("fetch runtime chain id failed"))?.into()))
+				.map_err(|err| internal_err(format!("fetch runtime chain id failed: {:?}", err)))?.into()))
 	}
 
 	fn gas_price(&self) -> Result<U256> {
@@ -356,25 +286,7 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 			self.client
 				.runtime_api()
 				.gas_price(&BlockId::Hash(hash))
-				.map_err(|_| internal_err("fetch runtime chain id failed"))?
-=======
-		let header = self.select_chain.best_chain()
-			.map_err(|err| internal_err(format!("fetch header failed: {:?}", err)))?;
-		Ok(Some(self.client.runtime_api().chain_id(&BlockId::Hash(header.hash()))
-				.map_err(|err| internal_err(format!("fetch runtime chain id failed: {:?}", err)))?.into()))
-	}
-
-	fn gas_price(&self) -> Result<U256> {
-		let header = self
-			.select_chain
-			.best_chain()
-			.map_err(|err| internal_err(format!("fetch header failed: {:?}", err)))?;
-		Ok(
-			self.client
-				.runtime_api()
-				.gas_price(&BlockId::Hash(header.hash()))
 				.map_err(|err| internal_err(format!("fetch runtime chain id failed: {:?}", err)))?
->>>>>>> upstream/master
 				.into(),
 		)
 	}
@@ -384,16 +296,8 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn block_number(&self) -> Result<U256> {
-<<<<<<< HEAD
 		let number = self.client.info().best_number;
 		Ok(U256::from(number.unique_saturated_into()))
-=======
-		let header = self
-			.select_chain
-			.best_chain()
-			.map_err(|err| internal_err(format!("fetch header failed: {:?}", err)))?;
-		Ok(U256::from(header.number().clone().unique_saturated_into()))
->>>>>>> upstream/master
 	}
 
 	fn balance(&self, address: H160, number: Option<BlockNumber>) -> Result<U256> {
@@ -423,16 +327,6 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn block_by_hash(&self, hash: H256, full: bool) -> Result<Option<RichBlock>> {
-<<<<<<< HEAD
-		let best_hash = self.client.info().best_hash;
-		if let Ok((Some(block), statuses)) = self.client.runtime_api().block_by_hash_with_statuses(
-			&BlockId::Hash(best_hash),
-			hash
-		) {
-			Ok(Some(rich_block_build(block, statuses, Some(hash), full)))
-		} else {
-			Ok(None)
-=======
 		let id = match frontier_consensus::load_block_hash::<B, _>(self.client.as_ref(), hash)
 			.map_err(|err| internal_err(format!("fetch aux store failed: {:?}", err)))?
 		{
@@ -457,21 +351,10 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 			_ => {
 				Ok(None)
 			},
->>>>>>> upstream/master
 		}
 	}
 
 	fn block_by_number(&self, number: BlockNumber, full: bool) -> Result<Option<RichBlock>> {
-<<<<<<< HEAD
-		let hash = self.client.info().best_hash;
-		if let Ok(Some(native_number)) = self.native_block_number(Some(number)) {
-			if let Ok((Some(block), statuses)) = self.client.runtime_api().block_by_number(
-				&BlockId::Hash(hash),
-				native_number
-			) {
-				return Ok(Some(rich_block_build(block, statuses, None, full)));
-			}
-=======
 		let id = match self.native_block_id(Some(number))? {
 			Some(id) => id,
 			None => return Ok(None),
@@ -498,7 +381,6 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 			_ => {
 				Ok(None)
 			},
->>>>>>> upstream/master
 		}
 	}
 
@@ -513,23 +395,18 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 			.map_err(|err| internal_err(format!("fetch runtime account basic failed: {:?}", err)))?
 			.nonce.into();
 
+		println!(">>>>>>>>>>>>>>>>>>>>>> BlockId {:#?}", id);
+		println!(">>>>>>>>>>>>>>>>>>>>>> Nonce {:#?}", nonce);
+
 		Ok(nonce)
 	}
 
 	fn block_transaction_count_by_hash(&self, hash: H256) -> Result<Option<U256>> {
-<<<<<<< HEAD
-		let best_hash = self.client.info().best_hash;
-		let result = match self.client.runtime_api()
-			.block_transaction_count_by_hash(&BlockId::Hash(best_hash), hash) {
-			Ok(result) => result,
-			Err(_) => return Ok(None)
-=======
 		let id = match frontier_consensus::load_block_hash::<B, _>(self.client.as_ref(), hash)
 			.map_err(|err| internal_err(format!("fetch aux store failed: {:?}", err)))?
 		{
 			Some(hash) => BlockId::Hash(hash),
 			None => return Ok(None),
->>>>>>> upstream/master
 		};
 
 		let block = self.client.runtime_api()
@@ -543,16 +420,6 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn block_transaction_count_by_number(&self, number: BlockNumber) -> Result<Option<U256>> {
-<<<<<<< HEAD
-		let hash = self.client.info().best_hash;
-		let mut result = None;
-		if let Ok(Some(native_number)) = self.native_block_number(Some(number)) {
-			result = match self.client.runtime_api()
-				.block_transaction_count_by_number(&BlockId::Hash(hash), native_number) {
-				Ok(result) => result,
-				Err(_) => None
-			};
-=======
 		let id = match self.native_block_id(Some(number))? {
 			Some(id) => id,
 			None => return Ok(None),
@@ -565,7 +432,6 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 		match block {
 			Some(block) => Ok(Some(U256::from(block.transactions.len()))),
 			None => Ok(None),
->>>>>>> upstream/master
 		}
 	}
 
@@ -604,7 +470,7 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 		Box::new(
 			self.pool
 				.submit_one(
-					&BlockId::hash(hash),
+					&BlockId::Hash(hash),
 					TransactionSource::Local,
 					self.convert_transaction.convert_transaction(transaction),
 				)
@@ -615,15 +481,7 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn call(&self, request: CallRequest, _: Option<BlockNumber>) -> Result<Bytes> {
-<<<<<<< HEAD
 		let hash = self.client.info().best_hash;
-=======
-		let header = self
-			.select_chain
-			.best_chain()
-			.map_err(|err| internal_err(format!("fetch header failed: {:?}", err)))?;
-
->>>>>>> upstream/master
 		let from = request.from.unwrap_or_default();
 		let to = request.to.unwrap_or_default();
 		let gas_price = request.gas_price;
@@ -650,15 +508,7 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn estimate_gas(&self, request: CallRequest, _: Option<BlockNumber>) -> Result<U256> {
-<<<<<<< HEAD
 		let hash = self.client.info().best_hash;
-=======
-		let header = self
-			.select_chain
-			.best_chain()
-			.map_err(|err| internal_err(format!("fetch header failed: {:?}", err)))?;
-
->>>>>>> upstream/master
 		let from = request.from.unwrap_or_default();
 		let gas_price = request.gas_price;
 		let gas_limit = request.gas.unwrap_or(U256::max_value()); // TODO: this isn't safe
@@ -687,16 +537,6 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn transaction_by_hash(&self, hash: H256) -> Result<Option<Transaction>> {
-<<<<<<< HEAD
-		let best_hash = self.client.info().best_hash;
-		if let Ok(Some((transaction, block, status, _receipt))) = self.client.runtime_api()
-			.transaction_by_hash(&BlockId::Hash(best_hash), hash) {
-			return Ok(Some(transaction_build(
-				transaction,
-				block,
-				status
-			)));
-=======
 		let (hash, index) = match frontier_consensus::load_transaction_metadata(
 			self.client.as_ref(),
 			hash,
@@ -726,7 +566,6 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 				)))
 			},
 			_ => Ok(None)
->>>>>>> upstream/master
 		}
 	}
 
@@ -735,18 +574,6 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 		hash: H256,
 		index: Index,
 	) -> Result<Option<Transaction>> {
-<<<<<<< HEAD
-		let best_hash = self.client.info().best_hash;
-		let index_param = index.value() as u32;
-
-		if let Ok(Some((transaction, block, status))) = self.client.runtime_api()
-			.transaction_by_block_hash_and_index(&BlockId::Hash(best_hash), hash, index_param) {
-			return Ok(Some(transaction_build(
-				transaction,
-				block,
-				status
-			)));
-=======
 		let id = match frontier_consensus::load_block_hash::<B, _>(self.client.as_ref(), hash)
 			.map_err(|err| internal_err(format!("fetch aux store failed: {:?}", err)))?
 		{
@@ -769,7 +596,6 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 				)))
 			},
 			_ => Ok(None)
->>>>>>> upstream/master
 		}
 	}
 
@@ -778,18 +604,7 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 		number: BlockNumber,
 		index: Index,
 	) -> Result<Option<Transaction>> {
-<<<<<<< HEAD
-		let hash = self.client.info().best_hash;
-		let index_param = index.value() as u32;
-		if let Ok(Some(native_number)) = self.native_block_number(Some(number)) {
-			if let Ok(Some((transaction, block, status))) = self.client.runtime_api()
-				.transaction_by_block_number_and_index(
-					&BlockId::Hash(hash),
-					native_number,
-					index_param) {
-				return Ok(Some(transaction_build(
-					transaction,
-=======
+
 		let id = match self.native_block_id(Some(number))? {
 			Some(id) => id,
 			None => return Ok(None),
@@ -805,7 +620,6 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 			(Some(block), Some(statuses)) => {
 				Ok(Some(transaction_build(
 					block.transactions[index].clone(),
->>>>>>> upstream/master
 					block,
 					statuses[index].clone(),
 				)))
@@ -815,11 +629,6 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn transaction_receipt(&self, hash: H256) -> Result<Option<Receipt>> {
-<<<<<<< HEAD
-		let best_hash = self.client.info().best_hash;
-		if let Ok(Some((_transaction, block, status, receipts))) = self.client.runtime_api()
-			.transaction_by_hash(&BlockId::Hash(best_hash), hash) {
-=======
 		let (hash, index) = match frontier_consensus::load_transaction_metadata(
 			self.client.as_ref(),
 			hash,
@@ -827,7 +636,6 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 			Some((hash, index)) => (hash, index as usize),
 			None => return Ok(None),
 		};
->>>>>>> upstream/master
 
 		let id = match frontier_consensus::load_block_hash::<B, _>(self.client.as_ref(), hash)
 			.map_err(|err| internal_err(format!("fetch aux store failed: {:?}", err)))?
@@ -915,15 +723,6 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 	}
 
 	fn logs(&self, filter: Filter) -> Result<Vec<Log>> {
-<<<<<<< HEAD
-		let hash = self.client.info().best_hash;
-		let mut from_block = None;
-		if let Some(from_block_input) = filter.from_block {
-			if let Ok(Some(block_number)) = self.native_block_number(Some(from_block_input)) {
-				from_block = Some(block_number);
-			}
-		}
-=======
 		let mut blocks_and_receipts = Vec::new();
 		let mut ret = Vec::new();
 
@@ -940,7 +739,6 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 				.map_err(|err| internal_err(format!("fetch runtime account basic failed: {:?}", err)))?;
 			let receipts = self.client.runtime_api().current_receipts(&id)
 				.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
->>>>>>> upstream/master
 
 			if let (Some(block), Some(receipts)) = (block, receipts) {
 				blocks_and_receipts.push((block, receipts));
@@ -1036,47 +834,8 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 				}
 			}
 		}
-
-<<<<<<< HEAD
-		if let Ok(logs) = self.client.runtime_api()
-			.logs(
-				&BlockId::Hash(hash),
-				from_block,
-				to_block,
-				filter.block_hash,
-				address,
-				topics
-		) {
-			let mut output = vec![];
-			for log in logs {
-				let address = log.0;
-				let topics = log.1;
-				let data = log.2;
-				let block_hash = log.3;
-				let block_number = log.4;
-				let transaction_hash = log.5;
-				let transaction_index = log.6;
-				let log_index = log.7;
-				let transaction_log_index = log.8;
-				output.push(Log {
-					address,
-					topics,
-					data: Bytes(data),
-					block_hash,
-					block_number,
-					transaction_hash,
-					transaction_index,
-					log_index,
-					transaction_log_index,
-					removed: false
-				});
-			}
-			return Ok(output);
-		}
-		Ok(vec![])
-=======
+		
 		Ok(ret)
->>>>>>> upstream/master
 	}
 
 	fn work(&self) -> Result<Work> {
@@ -1118,6 +877,7 @@ impl<B, BE, C, SC> NetApi<B, BE, C, SC> {
 
 impl<B, BE, C, SC> NetApiT for NetApi<B, BE, C, SC> where
 	C: ProvideRuntimeApi<B> + StorageProvider<B, BE> + AuxStore,
+	C: HeaderBackend<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
 	C::Api: EthereumRuntimeRPCApi<B>,
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
@@ -1134,9 +894,7 @@ impl<B, BE, C, SC> NetApiT for NetApi<B, BE, C, SC> where
 	}
 
 	fn version(&self) -> Result<String> {
-		let header = self.select_chain.best_chain()
-			.map_err(|_| internal_err("fetch header failed"))?;
-		Ok(self.client.runtime_api().chain_id(&BlockId::Hash(header.hash()))
+		Ok(self.client.runtime_api().chain_id(&BlockId::Hash(self.client.info().best_hash))
 			.map_err(|_| internal_err("fetch runtime chain id failed"))?.to_string())
 	}
 }
