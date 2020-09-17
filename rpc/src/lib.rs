@@ -438,7 +438,7 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 				data,
 				value,
 				gas_limit,
-				gas_price,
+				gas_price.unwrap_or_default(),
 				nonce,
 				ethereum::TransactionAction::Call(to)
 			)
@@ -464,7 +464,7 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 				data,
 				value,
 				gas_limit,
-				gas_price,
+				gas_price.unwrap_or_default(),
 				nonce,
 				match request.to {
 					Some(to) => ethereum::TransactionAction::Call(to),
