@@ -221,6 +221,16 @@ impl<B, C, SC, P, CT, BE> EthApi<B, C, SC, P, CT, BE> where
 			}
 		})
 	}
+
+	fn headers(&self, id: &BlockId<B>) -> (u64,u64) {
+		let best_number: u64 = UniqueSaturatedInto::<u64>::unique_saturated_into(
+			self.client.info().best_number
+		);
+		let header_number: u64 = UniqueSaturatedInto::<u64>::unique_saturated_into(
+			*self.client.header(id.clone()).unwrap().unwrap().number()
+		);
+		(best_number, header_number)
+	}
 }
 
 impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
@@ -333,6 +343,10 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 			Some(hash) => BlockId::Hash(hash),
 			None => return Ok(None),
 		};
+		let (best_number, header_number) = self.headers(&id);
+		if header_number > best_number {
+			return Ok(None);
+		}
 
 		let block = self.client.runtime_api().current_block(&id)
 			.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
@@ -408,6 +422,11 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 			Some(hash) => BlockId::Hash(hash),
 			None => return Ok(None),
 		};
+
+		let (best_number, header_number) = self.headers(&id);
+		if header_number > best_number {
+			return Ok(None);
+		}
 
 		let block = self.client.runtime_api()
 			.current_block(&id)
@@ -551,6 +570,10 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 			Some(hash) => BlockId::Hash(hash),
 			None => return Ok(None),
 		};
+		let (best_number, header_number) = self.headers(&id);
+		if header_number > best_number {
+			return Ok(None);
+		}
 
 		let block = self.client.runtime_api().current_block(&id)
 			.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
@@ -580,6 +603,11 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 			Some(hash) => BlockId::Hash(hash),
 			None => return Ok(None),
 		};
+		let (best_number, header_number) = self.headers(&id);
+		if header_number > best_number {
+			return Ok(None);
+		}
+
 		let index = index.value();
 
 		let block = self.client.runtime_api().current_block(&id)
@@ -643,6 +671,11 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 			Some(hash) => BlockId::Hash(hash),
 			None => return Ok(None),
 		};
+
+		let (best_number, header_number) = self.headers(&id);
+		if header_number > best_number {
+			return Ok(None);
+		}
 
 		let block = self.client.runtime_api().current_block(&id)
 			.map_err(|err| internal_err(format!("call runtime failed: {:?}", err)))?;
@@ -733,6 +766,11 @@ impl<B, C, SC, P, CT, BE> EthApiT for EthApi<B, C, SC, P, CT, BE> where
 				Some(hash) => BlockId::Hash(hash),
 				None => return Ok(ret),
 			};
+
+			let (best_number, header_number) = self.headers(&id);
+			if header_number > best_number {
+				return Ok(ret);
+			}
 
 			let block = self.client.runtime_api()
 				.current_block(&id)
