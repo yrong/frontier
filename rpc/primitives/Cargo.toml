@@ -10,7 +10,7 @@ license = "GPL-3.0"
 sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
 sp-api = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
 pallet-evm = { path = "../../../../pallets/evm", default-features = false }
-ethereum = { version = "0.2", default-features = false, features = ["codec"], path = "../../../ethereum" }
+ethereum = { version = "0.3", default-features = false, features = ["codec"], path = "../../../ethereum" }
 ethereum-types = { version = "0.9", default-features = false }
 codec = { package = "parity-scale-codec", version = "1.0.0", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }

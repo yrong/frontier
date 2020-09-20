@@ -23,7 +23,7 @@ sp-storage = { git = "https://github.com/paritytech/substrate", branch = "rococo
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
-ethereum = { version = "0.2", features = ["codec"], path = "../../ethereum" }
+ethereum = { version = "0.3", features = ["codec"], path = "../../ethereum" }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
 rlp = "0.4"
 pallet-ethereum = "0.1"

@@ -19,7 +19,7 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", default-features
 sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
 sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
 evm = { version = "0.17.0", default-features = false }
-ethereum = { version = "0.2", default-features = false, features = ["codec"], path = "../../../ethereum" }
+ethereum = { version = "0.3", default-features = false, features = ["codec"], path = "../../../ethereum" }
 ethereum-types = { version = "0.9", default-features = false }
 rlp = { version = "0.4", default-features = false }
 sha3 = { version = "0.8", default-features = false }
