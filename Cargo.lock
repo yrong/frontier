@@ -1500,6 +1500,7 @@ dependencies = [
  "sc-service",
  "sha3 0.8.2",
  "sp-api",
+ "sp-blockchain",
  "sp-consensus",
  "sp-io",
  "sp-runtime",
