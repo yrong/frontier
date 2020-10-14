@@ -28,6 +28,9 @@ use sc_client_api::backend::{StorageProvider, Backend, StateBackend, AuxStore};
 use sha3::{Keccak256, Digest};
 use sp_runtime::traits::BlakeTwo256;
 use sp_blockchain::{Error as BlockChainError, HeaderMetadata, HeaderBackend};
+use sp_core::storage::StorageKey;
+use codec::Decode;
+use sp_io::hashing::twox_128;
 use frontier_rpc_core::{EthApi as EthApiT, NetApi as NetApiT};
 use frontier_rpc_core::types::{
 	BlockNumber, Bytes, CallRequest, Filter, Index, Log, Receipt, RichBlock,
@@ -225,6 +228,36 @@ impl<B, C, P, CT, BE> EthApi<B, C, P, CT, BE> where
 		}
 		Ok(None)
 	}
+}
+
+fn logs<B, BE, C>(
+	client: &C,
+	block_number: u32,
+) -> Option<(H256, Vec<TransactionStatus>)> where 
+	B: BlockT,
+	BE: Backend<B>,
+	BE::State: StateBackend<BlakeTwo256>,
+	C: HeaderBackend<B> + StorageProvider<B, BE>,
+{
+	if let Ok(Some(header)) = client.header(BlockId::Number(block_number.into()))
+	{
+		if let Ok(frontier_consensus::ConsensusLog::EndBlock { block_hash, .. }) = frontier_consensus::find_frontier_log::<B>(&header) {
+			if let Ok(Some(data)) = client.storage(
+				&BlockId::Number(block_number.into()),
+				&StorageKey(
+					storage_prefix_build(b"Ethereum", b"CurrentTransactionStatuses")
+				)
+			) {
+				let statuses: Vec<TransactionStatus> = Decode::decode(&mut &data.0[..]).unwrap();
+				return Some((block_hash, statuses))
+			}
+		}
+	}
+	None
+}
+
+fn storage_prefix_build(module: &[u8], storage: &[u8]) -> Vec<u8> {
+	[twox_128(module), twox_128(storage)].concat().to_vec()
 }
 
 impl<B, C, P, CT, BE> EthApiT for EthApi<B, C, P, CT, BE> where
@@ -735,7 +768,11 @@ impl<B, C, P, CT, BE> EthApiT for EthApi<B, C, P, CT, BE> where
 				.map_err(|err| internal_err(format!("fetch runtime account basic failed: {:?}", err)))?;
 
 			if let (Some(block), Some(statuses)) = (block, statuses) {
-				blocks_and_statuses.push((block, statuses));
+				let block_hash = H256::from_slice(
+					Keccak256::digest(&rlp::encode(&block.header)).as_slice()
+				);
+				let block_number = block.header.number.clone();
+				blocks_and_statuses.push((block_hash, block_number, statuses));
 			}
 		} else {
 			let mut current_number = filter.to_block
@@ -752,29 +789,23 @@ impl<B, C, P, CT, BE> EthApiT for EthApi<B, C, P, CT, BE> where
 					self.client.info().best_number
 				);
 			while current_number >= from_number {
-				let id = BlockId::Number(current_number);
-
-				let (block, _, statuses) = self.client.runtime_api()
-					.current_all(&id)
-					.map_err(|err| internal_err(format!("fetch runtime account basic failed: {:?}", err)))?;
-
-				if let (Some(block), Some(statuses)) = (block, statuses) {
-					blocks_and_statuses.push((block, statuses));
-				}
-
 				if current_number == Zero::zero() {
 					break
-				} else {
-					current_number = current_number.saturating_sub(One::one());
 				}
+				let number = UniqueSaturatedInto::<u32>::unique_saturated_into(
+					current_number
+				);
+				if let Some(data) = logs(self.client.as_ref(), number) {
+					let block_number = U256::from(number);
+					let (block_hash, statuses) = data;
+					blocks_and_statuses.push((block_hash, block_number, statuses));
+				}
+				current_number = current_number.saturating_sub(One::one());
 			}
 		}
 
-		for (block, statuses) in blocks_and_statuses {
+		for (block_hash, block_number, statuses) in blocks_and_statuses {
 			let mut block_log_index: u32 = 0;
-			let block_hash = H256::from_slice(
-				Keccak256::digest(&rlp::encode(&block.header)).as_slice()
-			);
 			for status in statuses.iter() {
 				let logs = status.logs.clone();
 				let mut transaction_log_index: u32 = 0;
@@ -808,7 +839,7 @@ impl<B, C, P, CT, BE> EthApiT for EthApi<B, C, P, CT, BE> where
 							topics: log.topics.clone(),
 							data: Bytes(log.data.clone()),
 							block_hash: Some(block_hash),
-							block_number: Some(block.header.number.clone()),
+							block_number: Some(block_number),
 							transaction_hash: Some(transaction_hash),
 							transaction_index: Some(U256::from(status.transaction_index)),
 							log_index: Some(U256::from(block_log_index)),

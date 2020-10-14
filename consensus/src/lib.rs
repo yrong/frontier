@@ -23,7 +23,7 @@ pub use crate::aux_schema::{load_block_hash, load_transaction_metadata};
 use std::sync::Arc;
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use frontier_consensus_primitives::{FRONTIER_ENGINE_ID, ConsensusLog};
+pub use frontier_consensus_primitives::{FRONTIER_ENGINE_ID, ConsensusLog};
 use sc_client_api::{BlockOf, backend::AuxStore};
 use sp_blockchain::{HeaderBackend, ProvideCache, well_known_cache_keys::Id as CacheKeyId};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
@@ -153,7 +153,7 @@ impl<B, I, C> BlockImport<B> for FrontierBlockImport<B, I, C> where
 	}
 }
 
-fn find_frontier_log<B: BlockT>(
+pub fn find_frontier_log<B: BlockT>(
 	header: &B::Header,
 ) -> Result<ConsensusLog, Error> {
 	let mut frontier_log: Option<_> = None;
