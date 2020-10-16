@@ -19,7 +19,7 @@ use log::warn;
 use jsonrpc_pubsub::{typed::Subscriber, SubscriptionId, manager::SubscriptionManager};
 use frontier_rpc_core::EthPubSubApi::{self as EthPubSubApiT};
 use frontier_rpc_core::types::{
-	Rich, Header, Bytes, Log, VariadicValue, Filter,
+	Rich, Header, Bytes, Log, FilteredParams,
 	pubsub::{Kind, Params, Result as PubSubResult, PubSubSyncStatus}
 };
 use ethereum_types::{H256, U256};
@@ -50,95 +50,6 @@ impl<B: BlockT, P, C, BE, H: ExHashT> EthPubSubApi<B, P, C, BE, H> {
 		subscriptions: SubscriptionManager,
 	) -> Self {
 		Self { _pool, client, network, subscriptions, _marker: PhantomData }
-	}
-}
-
-struct FilteredParams {
-	filter: Option<Filter>,
-}
-
-impl FilteredParams {
-	pub fn new(
-		params: Option<Params>,
-	) -> Self {
-		if let Some(Params::Logs(d)) = params {
-			return FilteredParams { filter: Some(d) };
-		}
-		FilteredParams {
-			filter: None
-		}
-	}
-
-	pub fn filter_block_range(
-		&self,
-		block: &ethereum::Block
-	) -> bool {
-		let mut out = true;
-		let number = UniqueSaturatedInto::<u64>::unique_saturated_into(
-			block.header.number
-		);
-		let filter = self.filter.clone().unwrap();
-		if let Some(from) = filter.from_block {
-			if from.to_min_block_num().unwrap_or(0 as u64) > number {
-				out = false;
-			}
-		}
-		if let Some(to) = filter.to_block {
-			if to.to_min_block_num().unwrap_or(0 as u64) < number {
-				out = false;
-			}
-		}
-		out
-	}
-
-	fn filter_block_hash(
-		&self,
-		block_hash: H256
-	) -> bool {
-		if let Some(h) = self.filter.clone().unwrap().block_hash {
-			if h != block_hash { return false; }
-		}
-		true
-	}
-
-	fn filter_address(
-		&self,
-		log: &ethereum::Log
-	) -> bool {
-		if let Some(input_address) = &self.filter.clone().unwrap().address {
-			match input_address {
-				VariadicValue::Single(x) => {
-					if log.address != *x { return false; }
-				},
-				VariadicValue::Multiple(x) => {
-					if !x.contains(&log.address) { return false; }
-				},
-				_ => { return true; }
-			}
-		}
-		true
-	}
-
-	fn filter_topics(
-		&self,
-		log: &ethereum::Log
-	) -> bool {
-		if let Some(input_topics) = &self.filter.clone().unwrap().topics {
-			match input_topics {
-				VariadicValue::Single(x) => {
-					if !log.topics.starts_with(&vec![*x]) {
-						return false;
-					}
-				},
-				VariadicValue::Multiple(x) => {
-					if !log.topics.starts_with(&x) {
-						return false;
-					}
-				},
-				_ => { return true; }
-			}
-		}
-		true
 	}
 }
 
@@ -237,14 +148,29 @@ impl SubscriptionResult {
 	fn add_log(
 		&self,
 		block_hash: H256,
-		log: &ethereum::Log,
+		ethereum_log: &ethereum::Log,
 		block: &ethereum::Block,
 		params: &FilteredParams
 	) -> bool {
+		let log = Log {
+			address: ethereum_log.address.clone(),
+			topics: ethereum_log.topics.clone(),
+			data: Bytes(ethereum_log.data.clone()),
+			block_hash: None,
+			block_number: None,
+			transaction_hash: None,
+			transaction_index: None,
+			log_index: None,
+			transaction_log_index: None,
+			removed: false,
+		};
 		if let Some(_) = params.filter {
-			if !params.filter_block_range(block) ||
+			let block_number = UniqueSaturatedInto::<u64>::unique_saturated_into(
+				block.header.number
+			);
+			if !params.filter_block_range(block_number) ||
 				!params.filter_block_hash(block_hash) ||
-				!params.filter_address(log) || !params.filter_topics(log) {
+				!params.filter_address(&log) || !params.filter_topics(&log) {
 				return false;
 			}
 		}
@@ -291,7 +217,11 @@ impl<B: BlockT, P, C, BE, H: ExHashT> EthPubSubApiT for EthPubSubApi<B, P, C, BE
 		kind: Kind,
 		params: Option<Params>,
 	) {
-		let filtered_params = FilteredParams::new(params);
+		let filtered_params = match params {
+			Some(Params::Logs(filter)) => FilteredParams::new(Some(filter)),
+			_ => FilteredParams::default()
+		};
+
 		let client = self.client.clone();
 		let network = self.network.clone();
 		match kind {
