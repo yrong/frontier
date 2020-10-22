@@ -930,7 +930,7 @@ impl<B, C, P, CT, BE, A> EthApiT for EthApi<B, C, P, CT, BE, A> where
 					}
 					if add {
 						log.block_hash = Some(block_hash);
-						log.block_number = Some(block.header.number.clone());
+						log.block_number = Some(block_number);
 						log.transaction_hash = Some(transaction_hash);
 						log.transaction_index = Some(U256::from(status.transaction_index));
 						log.log_index = Some(U256::from(block_log_index));
