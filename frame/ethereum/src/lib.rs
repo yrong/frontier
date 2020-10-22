@@ -279,17 +279,17 @@ impl<T: Trait> Module<T> {
 		}
 
 		CurrentBlock::put(block.clone());
-		if receipts.len() > 0 {
+		// if receipts.len() > 0 {
 			CurrentReceipts::put(receipts.clone());
-		} else {
-			CurrentReceipts::kill();
-		}
+		// } else {
+		// 	CurrentReceipts::kill();
+		// }
 
-		if statuses.len() > 0 {
+		// if statuses.len() > 0 {
 			CurrentTransactionStatuses::put(statuses.clone());
-		} else {
-			CurrentTransactionStatuses::kill();
-		}
+		// } else {
+		// 	CurrentTransactionStatuses::kill();
+		// }
 
 		let digest = DigestItem::<T::Hash>::Consensus(
 			FRONTIER_ENGINE_ID,
