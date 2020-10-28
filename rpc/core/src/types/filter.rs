@@ -137,19 +137,23 @@ impl FilteredParams {
 			VariadicValue::Multiple(multi) => {
 				let mut foo: Vec<Vec<Option<H256>>> = Vec::new();
 				for v in multi {
-					if let Some(v) = v {
-						match v {
-							VariadicValue::Single(s) => {
-								foo.push(vec![s.clone()]);
-							},
-							VariadicValue::Multiple(s) => {
-								foo.push(s.clone());
-							},
-							VariadicValue::Null => {
-								foo.push(vec![None]);
-							},
+					foo.push({
+						if let Some(v) = v {
+							match v {
+								VariadicValue::Single(s) => {
+									vec![s.clone()]
+								},
+								VariadicValue::Multiple(s) => {
+									s.clone()
+								},
+								VariadicValue::Null => {
+									vec![None]
+								},
+							}
+						} else  {
+							vec![None]
 						}
-					}
+					});
 				}
 				for permut in cartesian(&foo) {
 					out.push(FlatTopic::Multiple(permut));
@@ -244,12 +248,13 @@ impl FilteredParams {
 		&self,
 		log: &Log
 	) -> bool {
+		let mut out: bool = true;
 		for topic in self.flat_topics.clone() {
 			match topic {
 				VariadicValue::Single(single) => {
 					if let Some(single) = single {
-						if log.topics.starts_with(&vec![single]) {
-							return true;
+						if !log.topics.starts_with(&vec![single]) {
+							out = false;
 						}
 						
 					}
@@ -257,17 +262,20 @@ impl FilteredParams {
 				VariadicValue::Multiple(_) => {
 					let replaced: Option<Vec<H256>> = self.replace(log, topic);
 					if let Some(replaced) = replaced {
+						out = false;
 						if log.topics.starts_with(
 							&replaced[..]
 						) {
-							return true;
+							out = true;
 						}
 					}
 				},
-				_ => { return true; }
+				_ => {
+					out = true;
+				}
 			}
 		}
-		false
+		out
 	}
 }
 
