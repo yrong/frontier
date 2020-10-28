@@ -204,13 +204,26 @@ impl FilteredParams {
 		let mut out = true;
 		let filter = self.filter.clone().unwrap();
 		if let Some(from) = filter.from_block {
-			if from.to_min_block_num().unwrap_or(0 as u64) > block_number {
-				out = false;
+			match from {
+				BlockNumber::Num(_) => {
+					if from.to_min_block_num().unwrap_or(0 as u64) > block_number {
+						out = false;
+					}
+				},
+				_ => {}
 			}
 		}
 		if let Some(to) = filter.to_block {
-			if to.to_min_block_num().unwrap_or(0 as u64) < block_number {
-				out = false;
+			match to {
+				BlockNumber::Num(_) => {
+					if to.to_min_block_num().unwrap_or(0 as u64) < block_number {
+						out = false;
+					}
+				},
+				BlockNumber::Earliest => {
+					out = false;
+				},
+				_ => {}
 			}
 		}
 		out
