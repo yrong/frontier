@@ -14,11 +14,11 @@ frame-support = { default-features = false, git = "https://github.com/paritytech
 frame-system = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
 pallet-balances = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
 pallet-timestamp = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
-pallet-evm = { default-features = false, git = "https://github.com/purestake/substrate", branch = "tgmichel-rococo-branch" }
+pallet-evm = { default-features = false, git = "https://github.com/purestake/substrate", branch = "tgmichel-chainlink" }
 sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
 sp-std = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
 sp-io = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
-sp-evm = { version = "0.8.0", default-features = false, git = "https://github.com/purestake/substrate.git", branch = "tgmichel-rococo-branch" }
+sp-evm = { version = "0.8.0", default-features = false, git = "https://github.com/purestake/substrate.git", branch = "tgmichel-chainlink" }
 evm = { version = "0.18.0", features = ["with-codec"], default-features = false }
 ethereum = { version = "0.4", default-features = false, features = ["with-codec"] }
 ethereum-types = { version = "0.9", default-features = false }

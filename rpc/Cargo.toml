@@ -27,8 +27,8 @@ sc-client-api = { git = "https://github.com/paritytech/substrate.git", branch = 
 sc-network = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
 sc-rpc = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
-ethereum = { version = "0.3", features = ["codec"] }
-pallet-evm = { git = "https://github.com/purestake/substrate.git", branch = "tgmichel-rococo-branch" }
+ethereum = { version = "0.4", features = ["with-codec"] }
+pallet-evm = { git = "https://github.com/purestake/substrate.git", branch = "tgmichel-chainlink" }
 pallet-ethereum = { path = "../frame/ethereum" }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
 rlp = "0.4"
