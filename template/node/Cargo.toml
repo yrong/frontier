@@ -19,8 +19,6 @@ structopt = "0.3.8"
 jsonrpc-core = "15.0.0"
 jsonrpc-pubsub = "15.0.0"
 
-jsonrpc-core = "14.0.3"
-
 sp-api = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
 sc-rpc-api = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
@@ -57,3 +55,4 @@ frontier-rpc-primitives = { version = "0.1.0", path = "../../rpc/primitives" }
 
 [build-dependencies]
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
+

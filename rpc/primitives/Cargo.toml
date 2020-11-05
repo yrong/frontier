@@ -9,8 +9,8 @@ license = "GPL-3.0"
 [dependencies]
 sp-core = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
 sp-api = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
-pallet-evm = { default-features = false, git = "https://github.com/purestake/substrate", branch = "tgmichel-rococo-branch" }
-ethereum = { version = "0.3", default-features = false, features = ["codec"] }
+sp-evm = { default-features = false, git = "https://github.com/purestake/substrate", branch = "tgmichel-rococo-branch" }
+ethereum = { version = "0.4", default-features = false, features = ["with-codec"] }
 ethereum-types = { version = "0.9", default-features = false }
 codec = { package = "parity-scale-codec", version = "1.0.0", default-features = false }
 sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
@@ -21,7 +21,7 @@ default = ["std"]
 std = [
 	"sp-core/std",
 	"sp-api/std",
-	"pallet-evm/std",
+	"sp-evm/std",
 	"ethereum/std",
 	"ethereum-types/std",
 	"codec/std",

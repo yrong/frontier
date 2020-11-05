@@ -20,53 +20,58 @@ use ethereum::{Block as EthereumBlock, Transaction as EthereumTransaction};
 use ethereum_types::{H160, H256, H64, U256, U64, H512};
 use jsonrpc_core::{BoxFuture, Result, futures::future::{self, Future}};
 use futures::future::TryFutureExt;
-use sp_runtime::traits::{Block as BlockT, Header as _, UniqueSaturatedInto, Zero, One, Saturating};
-use sp_runtime::transaction_validity::TransactionSource;
+use sp_runtime::{
+	traits::{Block as BlockT, Header as _, UniqueSaturatedInto, Zero, One, Saturating, BlakeTwo256},
+	transaction_validity::TransactionSource
+};
 use sp_api::{ProvideRuntimeApi, BlockId};
-use sp_transaction_pool::TransactionPool;
+use sp_transaction_pool::{TransactionPool, InPoolTransaction};
 use sc_transaction_graph::{Pool, ChainApi};
 use sc_client_api::backend::{StorageProvider, Backend, StateBackend, AuxStore};
 use sha3::{Keccak256, Digest};
-use sp_runtime::traits::BlakeTwo256;
 use sp_blockchain::{Error as BlockChainError, HeaderMetadata, HeaderBackend};
 use sp_storage::StorageKey;
 use codec::Decode;
 use sp_io::hashing::twox_128;
+use sc_network::{NetworkService, ExHashT};
 use frontier_rpc_core::{EthApi as EthApiT, NetApi as NetApiT};
 use frontier_rpc_core::types::{
 	BlockNumber, Bytes, CallRequest, Filter, FilteredParams, Index, Log, Receipt, RichBlock,
 	SyncStatus, SyncInfo, Transaction, Work, Rich, Block, BlockTransactions, VariadicValue
 };
 use frontier_rpc_primitives::{EthereumRuntimeRPCApi, ConvertTransaction, TransactionStatus};
-use crate::internal_err;
+use crate::{internal_err, error_on_execution_failure};
 
 pub use frontier_rpc_core::{EthApiServer, NetApiServer};
+use codec::{self, Encode};
 
 const DEFAULT_BLOCK_LIMIT: u32 = 50;
 const DEFAULT_LOG_LIMIT: u32 = 500;
 
-pub struct EthApi<B: BlockT, C, P, CT, BE, A: ChainApi> {
+pub struct EthApi<B: BlockT, C, P, CT, BE, A: ChainApi, H: ExHashT> {
 	pool: Arc<P>,
 	graph_pool: Arc<Pool<A>>,
 	client: Arc<C>,
 	convert_transaction: CT,
+	network: Arc<NetworkService<B, H>>,
 	is_authority: bool,
 	eth_block_limit: Option<u32>,
 	eth_log_limit: Option<u32>,
 	_marker: PhantomData<(B, BE)>,
 }
 
-impl<B: BlockT, C, P, CT, BE, A: ChainApi> EthApi<B, C, P, CT, BE, A> {
+impl<B: BlockT, C, P, CT, BE, A: ChainApi, H: ExHashT> EthApi<B, C, P, CT, BE, A, H> {
 	pub fn new(
 		client: Arc<C>,
 		graph_pool: Arc<Pool<A>>,
 		pool: Arc<P>,
 		convert_transaction: CT,
+		network: Arc<NetworkService<B, H>>,
 		is_authority: bool,
 		eth_block_limit: Option<u32>,
 		eth_log_limit: Option<u32>,
 	) -> Self {
-		Self { client, pool, graph_pool, convert_transaction, is_authority, eth_block_limit, eth_log_limit, _marker: PhantomData }
+		Self { client, pool, graph_pool, convert_transaction, network, is_authority, eth_block_limit, eth_log_limit, _marker: PhantomData }
 	}
 }
 
@@ -88,7 +93,7 @@ fn rich_block_build(
 				)
 			})),
 			parent_hash: block.header.parent_hash,
-			uncles_hash: H256::zero(),
+			uncles_hash: block.header.ommers_hash,
 			author: block.header.beneficiary,
 			miner: block.header.beneficiary,
 			state_root: block.header.state_root,
@@ -97,7 +102,7 @@ fn rich_block_build(
 			number: Some(block.header.number),
 			gas_used: block.header.gas_used,
 			gas_limit: block.header.gas_limit,
-			extra_data: Bytes(block.header.extra_data.as_bytes().to_vec()),
+			extra_data: Bytes(block.header.extra_data.clone()),
 			logs_bloom: Some(block.header.logs_bloom),
 			timestamp: U256::from(block.header.timestamp / 1000),
 			difficulty: block.header.difficulty,
@@ -185,7 +190,7 @@ fn transaction_build(
 	}
 }
 
-impl<B, C, P, CT, BE, A> EthApi<B, C, P, CT, BE, A> where
+impl<B, C, P, CT, BE, A, H: ExHashT> EthApi<B, C, P, CT, BE, A, H> where
 	C: ProvideRuntimeApi<B> + StorageProvider<B, BE> + AuxStore,
 	C: HeaderBackend<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
 	C::Api: EthereumRuntimeRPCApi<B>,
@@ -288,7 +293,7 @@ impl<B, C, P, CT, BE, A> EthApi<B, C, P, CT, BE, A> where
 	}
 }
 
-impl<B, C, P, CT, BE, A> EthApiT for EthApi<B, C, P, CT, BE, A> where
+impl<B, C, P, CT, BE, A, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, A, H> where
 	C: ProvideRuntimeApi<B> + StorageProvider<B, BE> + AuxStore,
 	C: HeaderBackend<B> + HeaderMetadata<B, Error=BlockChainError> + 'static,
 	C::Api: EthereumRuntimeRPCApi<B>,
@@ -305,15 +310,23 @@ impl<B, C, P, CT, BE, A> EthApiT for EthApi<B, C, P, CT, BE, A> where
 	}
 
 	fn syncing(&self) -> Result<SyncStatus> {
-		let block_number = U256::from(self.client.info().best_number.clone().unique_saturated_into());
-
-		Ok(SyncStatus::Info(SyncInfo {
-			starting_block: U256::zero(),
-			current_block: block_number,
-			highest_block: block_number,
-			warp_chunks_amount: None,
-			warp_chunks_processed: None,
-		}))
+		if self.network.is_major_syncing() {
+			let block_number = U256::from(
+				self.client.info().best_number.clone().unique_saturated_into()
+			);
+			Ok(SyncStatus::Info(SyncInfo {
+				starting_block: U256::zero(),
+				current_block: block_number,
+				// TODO `highest_block` is not correct, should load `best_seen_block` from NetworkWorker,
+				// but afaik that is not currently possible in Substrate:
+				// https://github.com/paritytech/substrate/issues/7311
+				highest_block: block_number,
+				warp_chunks_amount: None,
+				warp_chunks_processed: None,
+			}))
+		} else {
+			Ok(SyncStatus::None)
+		}
 	}
 
 	fn hashrate(&self) -> Result<U256> {
@@ -445,6 +458,28 @@ impl<B, C, P, CT, BE, A> EthApiT for EthApi<B, C, P, CT, BE, A> where
 	}
 
 	fn transaction_count(&self, address: H160, number: Option<BlockNumber>) -> Result<U256> {
+		if let Some(BlockNumber::Pending) = number {
+			// Find future nonce
+			let id = BlockId::hash(self.client.info().best_hash);
+			let nonce: U256 = self.client.runtime_api()
+				.account_basic(&id, address)
+				.map_err(|err| internal_err(format!("fetch runtime account basic failed: {:?}", err)))?
+				.nonce;
+
+			let mut current_nonce = nonce;
+			let mut current_tag = (address, nonce).encode();
+			for tx in self.pool.ready() {
+				// since transactions in `ready()` need to be ordered by nonce
+				// it's fine to continue with current iterator.
+				if tx.provides().get(0) == Some(&current_tag) {
+					current_nonce = current_nonce.saturating_add(1.into());
+					current_tag = (address, current_nonce).encode();
+				}
+			}
+
+			return Ok(current_nonce);
+		}
+
 		let id = match self.native_block_id(number)? {
 			Some(id) => id,
 			None => return Ok(U256::zero()),
@@ -557,57 +592,115 @@ impl<B, C, P, CT, BE, A> EthApiT for EthApi<B, C, P, CT, BE, A> where
 	fn call(&self, request: CallRequest, _: Option<BlockNumber>) -> Result<Bytes> {
 		let hash = self.client.info().best_hash;
 
-		let from = request.from.unwrap_or_default();
-		let to = request.to.unwrap_or_default();
-		let gas_price = request.gas_price;
-		let gas_limit = request.gas.unwrap_or(U256::max_value());
-		let value = request.value.unwrap_or_default();
-		let data = request.data.map(|d| d.0).unwrap_or_default();
-		let nonce = request.nonce;
+		let CallRequest {
+			from,
+			to,
+			gas_price,
+			gas,
+			value,
+			data,
+			nonce
+		} = request;
 
-		let (ret, _) = self.client.runtime_api()
-			.call(
-				&BlockId::Hash(hash),
-				from,
-				data,
-				value,
-				gas_limit,
-				gas_price,
-				nonce,
-				ethereum::TransactionAction::Call(to)
-			)
-			.map_err(|err| internal_err(format!("internal error: {:?}", err)))?
-			.map_err(|err| internal_err(format!("executing call failed: {:?}", err)))?;
+		let gas_limit = gas.unwrap_or(U256::max_value()); // TODO: set a limit
+		let data = data.map(|d| d.0).unwrap_or_default();
 
-		Ok(Bytes(ret))
+		match to {
+			Some(to) => {
+				let info = self.client.runtime_api()
+					.call(
+						&BlockId::Hash(hash),
+						from.unwrap_or_default(),
+						to,
+						data,
+						value.unwrap_or_default(),
+						gas_limit,
+						gas_price,
+						nonce,
+					)
+					.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
+					.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?;
+
+				error_on_execution_failure(&info.exit_reason, &info.value)?;
+
+				Ok(Bytes(info.value))
+			},
+			None => {
+				let info = self.client.runtime_api()
+					.create(
+						&BlockId::Hash(hash),
+						from.unwrap_or_default(),
+						data,
+						value.unwrap_or_default(),
+						gas_limit,
+						gas_price,
+						nonce,
+					)
+					.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
+					.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?;
+
+				error_on_execution_failure(&info.exit_reason, &[])?;
+
+				Ok(Bytes(info.value[..].to_vec()))
+			},
+		}
 	}
 
 	fn estimate_gas(&self, request: CallRequest, _: Option<BlockNumber>) -> Result<U256> {
 		let hash = self.client.info().best_hash;
 
-		let from = request.from.unwrap_or_default();
-		let gas_price = request.gas_price;
-		let gas_limit = request.gas.unwrap_or(U256::max_value()); // TODO: this isn't safe
-		let value = request.value.unwrap_or_default();
-		let data = request.data.map(|d| d.0).unwrap_or_default();
-		let nonce = request.nonce;
+		let CallRequest {
+			from,
+			to,
+			gas_price,
+			gas,
+			value,
+			data,
+			nonce
+		} = request;
 
-		let (_, used_gas) = self.client.runtime_api()
-			.call(
-				&BlockId::Hash(hash),
-				from,
-				data,
-				value,
-				gas_limit,
-				gas_price,
-				nonce,
-				match request.to {
-					Some(to) => ethereum::TransactionAction::Call(to),
-					_ => ethereum::TransactionAction::Create,
-				}
-			)
-			.map_err(|err| internal_err(format!("internal error: {:?}", err)))?
-			.map_err(|err| internal_err(format!("executing call failed: {:?}", err)))?;
+		let gas_limit = gas.unwrap_or(U256::max_value()); // TODO: set a limit
+		let data = data.map(|d| d.0).unwrap_or_default();
+
+		let used_gas = match to {
+			Some(to) => {
+				let info = self.client.runtime_api()
+					.call(
+						&BlockId::Hash(hash),
+						from.unwrap_or_default(),
+						to,
+						data,
+						value.unwrap_or_default(),
+						gas_limit,
+						gas_price,
+						nonce,
+					)
+					.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
+					.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?;
+
+				error_on_execution_failure(&info.exit_reason, &info.value)?;
+
+				info.used_gas
+			},
+			None => {
+				let info = self.client.runtime_api()
+					.create(
+						&BlockId::Hash(hash),
+						from.unwrap_or_default(),
+						data,
+						value.unwrap_or_default(),
+						gas_limit,
+						gas_price,
+						nonce,
+					)
+					.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
+					.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?;
+
+				error_on_execution_failure(&info.exit_reason, &[])?;
+
+				info.used_gas
+			},
+		};
 
 		Ok(used_gas)
 	}

@@ -54,14 +54,14 @@ std = [
 	"codec/std",
 	"serde",
 
-	"frame-ethereum/std",
-	"frame-evm/std",
 	"frame-executive/std",
 	"frame-support/std",
 	"frame-system-rpc-runtime-api/std",
 	"frame-system/std",
 	"frontier-rpc-primitives/std",
 
+	"pallet-ethereum/std",
+	"pallet-evm/std",
 	"pallet-aura/std",
 	"pallet-balances/std",
 	"pallet-grandpa/std",
