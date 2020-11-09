@@ -20,7 +20,7 @@ frame-system = { default-features = false, package = "frame-system", git = "http
 frame-system-rpc-runtime-api = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
 
 pallet-ethereum = { version = "0.1.0", default-features = false, path = "../../frame/ethereum" }
-pallet-evm = { default-features = false, git = "https://github.com/purestake/substrate.git", branch = "tgmichel-chainlink" }
+pallet-evm = { default-features = false, git = "https://github.com/purestake/substrate.git", branch = "v0.3-hotfixes" }
 pallet-aura = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
 pallet-balances = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
 pallet-grandpa = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "rococo-branch" }
