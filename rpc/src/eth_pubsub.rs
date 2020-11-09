@@ -95,10 +95,14 @@ impl SubscriptionResult {
 	}
 	pub fn logs(
 		&self,
-		block: ethereum::Block,
+		block_input: Option<ethereum::Block>,
 		receipts: Vec<ethereum::Receipt>,
 		params: &FilteredParams
 	) -> Vec<Log> {
+		if block_input.is_none() {
+			return Vec::new();
+		}
+		let block = block_input.unwrap();
 		let block_hash = Some(H256::from_slice(
 			Keccak256::digest(&rlp::encode(
 				&block.header
@@ -234,8 +238,16 @@ impl<B: BlockT, P, C, BE, H: ExHashT> EthPubSubApiT for EthPubSubApi<B, P, C, BE
 							let data = changes.iter().last().unwrap().2.unwrap();
 							let receipts: Vec<ethereum::Receipt> =
 								Decode::decode(&mut &data.0[..]).unwrap();
-							let block: ethereum::Block = client.runtime_api()
-								.current_block(&id).unwrap().unwrap();
+							let block: Option<ethereum::Block> = if let Ok(Some(data)) = client.storage(
+								&id,
+								&StorageKey(
+									storage_prefix_build(b"Ethereum", b"CurrentBlock")
+								)
+							) {
+								if let Ok(result) = Decode::decode(&mut &data.0[..]) {
+									Some(result)
+								} else { None }
+							} else { None };
 							futures::stream::iter(
 								SubscriptionResult::new()
 									.logs(block, receipts, &filtered_params)
