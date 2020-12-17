@@ -55,11 +55,12 @@
 
 mod tests;
 pub mod runner;
-pub mod precompiles;
 
-pub use crate::precompiles::{Precompile, Precompiles};
 pub use crate::runner::Runner;
-pub use fp_evm::{Account, Log, Vicinity, ExecutionInfo, CallInfo, CreateInfo};
+pub use fp_evm::{
+	Account, Log, Vicinity, ExecutionInfo, CallInfo, CreateInfo, Precompile,
+	PrecompileSet, LinearCostPrecompile,
+};
 pub use evm::{ExitReason, ExitSucceed, ExitError, ExitRevert, ExitFatal};
 
 use sp_std::vec::Vec;
@@ -250,7 +251,7 @@ pub trait Config: frame_system::Config + pallet_timestamp::Config {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	/// Precompiles associated with this EVM engine.
-	type Precompiles: Precompiles;
+	type Precompiles: PrecompileSet;
 	/// Chain ID of EVM.
 	type ChainId: Get<u64>;
 	/// EVM execution runner.

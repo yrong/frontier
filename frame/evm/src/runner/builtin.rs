@@ -36,7 +36,7 @@ use evm_runtime::{Config as EvmConfig, Handler as HandlerT};
 use evm_gasometer::{self as gasometer, Gasometer};
 use crate::{
 	Config, Vicinity, Module, Event, Log, AccountCodes, AccountStorages, AddressMapping,
-	Runner as RunnerT, Error, CallInfo, CreateInfo, FeeCalculator, precompiles::Precompiles,
+	Runner as RunnerT, Error, CallInfo, CreateInfo, FeeCalculator, PrecompileSet,
 };
 
 #[derive(Default)]
@@ -286,7 +286,7 @@ pub struct Handler<'vicinity, 'config, T: Config> {
 	gasometer: Gasometer<'config>,
 	deleted: BTreeSet<H160>,
 	logs: Vec<Log>,
-	precompile: fn(H160, &[u8], Option<usize>) ->
+	precompile: fn(H160, &[u8], Option<usize>, &Context) ->
 		Option<Result<(ExitSucceed, Vec<u8>, usize), ExitError>>,
 	is_static: bool,
 	_marker: PhantomData<T>,
@@ -299,7 +299,7 @@ impl<'vicinity, 'config, T: Config> Handler<'vicinity, 'config, T> {
 		gas_limit: usize,
 		is_static: bool,
 		config: &'config EvmConfig,
-		precompile: fn(H160, &[u8], Option<usize>) ->
+		precompile: fn(H160, &[u8], Option<usize>, &Context) ->
 			Option<Result<(ExitSucceed, Vec<u8>, usize), ExitError>>,
 	) -> Self {
 		Self {
