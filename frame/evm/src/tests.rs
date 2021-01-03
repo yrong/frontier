@@ -121,7 +121,7 @@ impl Config for Test {
 
 	type Event = Event<Test>;
 	type Precompiles = ();
-	type ChainId = SystemChainId;
+	type ChainId = <Test as frame_system::Config>::SS58Prefix;
 }
 
 type System = frame_system::Module<Test>;
