@@ -39,7 +39,10 @@ pub use self::bytes::Bytes;
 pub use self::block::{RichBlock, Block, BlockTransactions, Header, RichHeader, Rich};
 pub use self::block_number::BlockNumber;
 pub use self::call_request::CallRequest;
-pub use self::filter::{Filter, FilterChanges, VariadicValue, FilterAddress, Topic, FilteredParams};
+pub use self::filter::{
+	Filter, FilterChanges, FilterPool, FilterPoolItem, FilterType, VariadicValue, FilterAddress,
+	Topic, FilteredParams,
+};
 pub use self::index::Index;
 pub use self::log::Log;
 pub use self::receipt::Receipt;
@@ -47,6 +50,8 @@ pub use self::sync::{
 	SyncStatus, SyncInfo, Peers, PeerInfo, PeerNetworkInfo, PeerProtocolsInfo,
 	TransactionStats, ChainStatus, EthProtocolInfo, PipProtocolInfo,
 };
-pub use self::transaction::{Transaction, RichRawTransaction, LocalTransactionStatus};
+pub use self::transaction::{
+	Transaction, RichRawTransaction, LocalTransactionStatus, PendingTransactions, PendingTransaction,
+};
 pub use self::transaction_request::TransactionRequest;
 pub use self::work::Work;
