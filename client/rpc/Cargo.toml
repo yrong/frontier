@@ -16,16 +16,16 @@ ethereum-types = "0.10.0"
 fc-consensus = { path = "../consensus" }
 fc-rpc-core = { path = "../rpc-core" }
 fp-rpc = { path = "../../primitives/rpc" }
-sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "frontier" }
-sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "frontier" }
-sp-api = { git = "https://github.com/paritytech/substrate.git", branch = "frontier" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate.git", branch = "frontier" }
-sp-storage = { git = "https://github.com/paritytech/substrate.git", branch = "frontier" } 
-sp-blockchain = { git = "https://github.com/paritytech/substrate.git", branch = "frontier" } 
-sc-service = { git = "https://github.com/paritytech/substrate.git", branch = "frontier" }
-sc-client-api = { git = "https://github.com/paritytech/substrate.git", branch = "frontier" }
-sc-rpc = { git = "https://github.com/paritytech/substrate.git", branch = "frontier" }
-sc-network = { git = "https://github.com/paritytech/substrate.git", branch = "frontier" }
+sp-io = "2.0.0"
+sp-runtime = "2.0.0"
+sp-api = "2.0.0"
+sp-transaction-pool = "2.0.0"
+sp-storage = "2.0.0" 
+sp-blockchain = "2.0.0" 
+sc-service = "0.8.0"
+sc-client-api = "2.0.0"
+sc-rpc = "2.0.0"
+sc-network = "0.8.0"
 pallet-evm = { path = "../../frame/evm" }
 pallet-ethereum = { path = "../../frame/ethereum" }
 ethereum = { version = "0.6", features = ["with-codec"] }
