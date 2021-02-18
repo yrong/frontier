@@ -1169,19 +1169,6 @@ dependencies = [
 
 [[package]]
 name = "ethbloom"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22a621dcebea74f2a6f2002d0a885c81ccf6cbdf86760183316a7722b5707ca4"
-dependencies = [
- "crunchy",
- "fixed-hash",
- "impl-codec 0.4.2",
- "impl-rlp",
- "tiny-keccak",
-]
-
-[[package]]
-name = "ethbloom"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "779864b9c7f7ead1f092972c3257496c6a84b46dba2ce131dd8a282cb2cc5972"
@@ -1196,28 +1183,11 @@ dependencies = [
 
 [[package]]
 name = "ethereum"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8603f637f22e3ab9aff8466b37850cd7ea2ae52034b07e41fdc82f1f68dfa2c"
-dependencies = [
- "ethereum-types 0.10.0",
- "hash-db",
- "hash256-std-hasher",
- "parity-scale-codec 1.3.6",
- "rlp",
- "rlp-derive",
- "serde",
- "sha3 0.9.1",
- "triehash",
-]
-
-[[package]]
-name = "ethereum"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e058b37a6608bf0a73e4f55fcf553d0d24f12cc9ea95d1a8e50a5cbf6ad20e45"
 dependencies = [
- "ethereum-types 0.11.0",
+ "ethereum-types",
  "funty",
  "hash-db",
  "hash256-std-hasher",
@@ -1231,25 +1201,11 @@ dependencies = [
 
 [[package]]
 name = "ethereum-types"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05dc5f0df4915fa6dff7f975a8366ecfaaa8959c74235469495153e7bb1b280e"
-dependencies = [
- "ethbloom 0.10.0",
- "fixed-hash",
- "impl-codec 0.4.2",
- "impl-rlp",
- "primitive-types 0.8.0",
- "uint",
-]
-
-[[package]]
-name = "ethereum-types"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f64b5df66a228d85e4b17e5d6c6aa43b0310898ffe8a85988c4c032357aaabfd"
 dependencies = [
- "ethbloom 0.11.0",
+ "ethbloom",
  "fixed-hash",
  "impl-codec 0.5.0",
  "impl-rlp",
@@ -1270,7 +1226,7 @@ version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0467250a12bb144ad7b2f41e03e8675e38b971ab73f6d42ede6b78af07657e7b"
 dependencies = [
- "ethereum 0.7.0",
+ "ethereum",
  "evm-core",
  "evm-gasometer",
  "evm-runtime",
@@ -1388,8 +1344,8 @@ dependencies = [
 name = "fc-rpc"
 version = "0.1.0"
 dependencies = [
- "ethereum 0.6.0",
- "ethereum-types 0.11.0",
+ "ethereum",
+ "ethereum-types",
  "fc-consensus",
  "fc-rpc-core",
  "fp-rpc",
@@ -1423,7 +1379,7 @@ dependencies = [
 name = "fc-rpc-core"
 version = "0.1.0"
 dependencies = [
- "ethereum-types 0.11.0",
+ "ethereum-types",
  "jsonrpc-core 15.1.0",
  "jsonrpc-core-client 14.2.0",
  "jsonrpc-derive 14.2.2",
@@ -1539,8 +1495,8 @@ dependencies = [
 name = "fp-rpc"
 version = "0.1.0"
 dependencies = [
- "ethereum 0.6.0",
- "ethereum-types 0.11.0",
+ "ethereum",
+ "ethereum-types",
  "fp-evm",
  "parity-scale-codec 2.0.0",
  "sp-api",
@@ -2365,9 +2321,9 @@ dependencies = [
 
 [[package]]
 name = "idna"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de910d521f7cc3135c4de8db1cb910e0b5ed1dc6f57c381cd07e8e661ce10094"
+checksum = "89829a5d69c23d348314a7ac337fe39173b61149a9864deabd260983aed48c21"
 dependencies = [
  "matches",
  "unicode-bidi",
@@ -3906,8 +3862,8 @@ dependencies = [
 name = "pallet-ethereum"
 version = "0.1.0"
 dependencies = [
- "ethereum 0.6.0",
- "ethereum-types 0.11.0",
+ "ethereum",
+ "ethereum-types",
  "evm",
  "fp-consensus",
  "fp-evm",
@@ -4200,7 +4156,6 @@ dependencies = [
  "arrayvec 0.5.2",
  "bitvec 0.17.4",
  "byte-slice-cast 0.3.5",
- "parity-scale-codec-derive 1.2.2",
  "serde",
 ]
 
@@ -4213,20 +4168,8 @@ dependencies = [
  "arrayvec 0.5.2",
  "bitvec 0.20.1",
  "byte-slice-cast 1.0.0",
- "parity-scale-codec-derive 2.0.0",
+ "parity-scale-codec-derive",
  "serde",
-]
-
-[[package]]
-name = "parity-scale-codec-derive"
-version = "1.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "198db82bb1c18fc00176004462dd809b2a6d851669550aa17af6dacd21ae0c14"
-dependencies = [
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -8043,7 +7986,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5909f2b0817350449ed73e8bcd81c8c3c8d9a7a5d8acba4b27db277f1868976e"
 dependencies = [
  "form_urlencoded",
- "idna 0.2.1",
+ "idna 0.2.2",
  "matches",
  "percent-encoding 2.1.0",
 ]
