@@ -8,10 +8,10 @@ license = "GPL-3.0"
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "2.0" }
-sp-runtime = "3.0.0"
-sp-api = "3.0.0"
-sc-executor = "0.9.0"
-sc-light = "3.0.0"
-sc-consensus = "0.9.0"
-sc-client-api = "3.0.0"
+sp-runtime = { version = "3.0.0", git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-api = { version = "3.0.0", git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sc-executor = { version = "0.9.0", git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sc-light = { version = "3.0.0", git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sc-consensus = { version = "0.9.0", git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sc-client-api = { version = "3.0.0", git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 frontier-template-runtime = { path = "../../runtime" }
