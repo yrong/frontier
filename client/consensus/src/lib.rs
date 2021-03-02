@@ -131,10 +131,13 @@ impl<B, I, C> BlockImport<B> for FrontierBlockImport<B, I, C> where
 			)
 		}
 
+		if !self.enabled {
+			return self.inner.import_block(block, new_cache).map_err(Into::into)
+		}
+
 		let client = self.client.clone();
 
-		if self.enabled {
-			let log = find_frontier_log::<B>(&block.header)?;
+		if let Ok(log) = find_frontier_log::<B>(&block.header) {
 			let hash = block.post_hash();
 			match log {
 				ConsensusLog::EndBlock {
