@@ -21,7 +21,7 @@ use sp_std::{marker::PhantomData, vec::Vec, boxed::Box, mem, collections::btree_
 use sp_core::{U256, H256, H160};
 use sp_runtime::traits::UniqueSaturatedInto;
 use frame_support::{
-	debug, ensure, traits::{Get, Currency, ExistenceRequirement},
+	runtime_print, ensure, traits::{Get, Currency, ExistenceRequirement},
 	storage::{StorageMap, StorageDoubleMap},
 };
 use sha3::{Keccak256, Digest};
@@ -91,8 +91,7 @@ impl<T: Config> Runner<T> {
 
 		let used_gas = U256::from(executor.used_gas());
 		let actual_fee = executor.fee(gas_price);
-		debug::debug!(
-			target: "evm",
+		runtime_print!(
 			"Execution {:?} [source: {:?}, value: {}, gas_limit: {}, actual_fee: {}]",
 			reason,
 			source,
@@ -106,8 +105,7 @@ impl<T: Config> Runner<T> {
 		let state = executor.into_state();
 
 		for address in state.substate.deletes {
-			debug::debug!(
-				target: "evm",
+			runtime_print!(
 				"Deleting account at {:?}",
 				address
 			);
@@ -115,8 +113,8 @@ impl<T: Config> Runner<T> {
 		}
 
 		for log in &state.substate.logs {
+            /*
 			debug::trace!(
-				target: "evm",
 				"Inserting log for {:?}, topics ({}) {:?}, data ({}): {:?}]",
 				log.address,
 				log.topics.len(),
@@ -124,6 +122,7 @@ impl<T: Config> Runner<T> {
 				log.data.len(),
 				log.data
 			);
+            */
 			Module::<T>::deposit_event(Event::<T>::Log(Log {
 				address: log.address,
 				topics: log.topics.clone(),
@@ -445,16 +444,14 @@ impl<'vicinity, 'config, T: Config> StackStateT<'config> for SubstrateStackState
 
 	fn set_storage(&mut self, address: H160, index: H256, value: H256) {
 		if value == H256::default() {
-			debug::debug!(
-				target: "evm",
+			runtime_print!(
 				"Removing storage for {:?} [index: {:?}]",
 				address,
 				index,
 			);
 			AccountStorages::remove(address, index);
 		} else {
-			debug::debug!(
-				target: "evm",
+			runtime_print!(
 				"Updating storage for {:?} [index: {:?}, value: {:?}]",
 				address,
 				index,
@@ -477,8 +474,7 @@ impl<'vicinity, 'config, T: Config> StackStateT<'config> for SubstrateStackState
 	}
 
 	fn set_code(&mut self, address: H160, code: Vec<u8>) {
-		debug::debug!(
-			target: "evm",
+		runtime_print!(
 			"Inserting code ({} bytes) at {:?}",
 			code.len(),
 			address

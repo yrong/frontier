@@ -16,16 +16,16 @@ ethereum-types = "0.11.0"
 fc-consensus = { path = "../consensus" }
 fc-rpc-core = { path = "../rpc-core" }
 fp-rpc = { path = "../../primitives/rpc" }
-sp-io = "3.0.0"
-sp-runtime = "3.0.0"
-sp-api = "3.0.0"
-sp-transaction-pool = "3.0.0"
-sp-storage = "3.0.0" 
-sp-blockchain = "3.0.0" 
-sc-service = "0.9.0"
-sc-client-api = "3.0.0"
-sc-rpc = "3.0.0"
-sc-network = "0.9.0"
+sp-io = { git = "http://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-runtime = { git = "http://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-api = { git = "http://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-transaction-pool = { git = "http://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-storage = { git = "http://github.com/paritytech/substrate", branch = "rococo-v1" } 
+sp-blockchain = { git = "http://github.com/paritytech/substrate", branch = "rococo-v1" } 
+sc-service = { git = "http://github.com/paritytech/substrate", branch = "rococo-v1" }
+sc-client-api = { git = "http://github.com/paritytech/substrate", branch = "rococo-v1" }
+sc-rpc = { git = "http://github.com/paritytech/substrate", branch = "rococo-v1" }
+sc-network = { git = "http://github.com/paritytech/substrate", branch = "rococo-v1" }
 pallet-evm = { path = "../../frame/evm" }
 pallet-ethereum = { path = "../../frame/ethereum" }
 ethereum = { version = "0.7", features = ["with-codec"] }
