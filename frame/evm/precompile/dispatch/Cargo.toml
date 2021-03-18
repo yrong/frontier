@@ -14,7 +14,7 @@ sp-io = { version = "3.0.0", git = "https://github.com/paritytech/substrate", br
 frame-support = { version = "3.0.0", git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
 pallet-evm = { version = "3.0.0", default-features = false, path = "../.." }
 fp-evm = { version = "0.9.0", default-features = false, path = "../../../../primitives/evm" }
-evm = { version = "0.24.0", git = "https://github.com/rust-blockchain/evm", default-features = false, features = ["with-codec"] }
+evm = { version = "0.25.0", default-features = false, features = ["with-codec"] }
 codec = { package = "parity-scale-codec", version = "2.0", default-features = false }
 
 [features]
