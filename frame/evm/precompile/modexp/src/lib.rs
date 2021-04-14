@@ -84,7 +84,8 @@ impl LinearCostPrecompile for Modexp {
 		// input length should be at least 96 + user-specified length of base + exp + mod
 		let total_len = base_len + exp_len + mod_len + 96;
 		if input.len() < total_len {
-			let err_msg = format!("expected at least {} bytes but received {}", total_len, input.len());
+			//let err_msg = format!("expected at least {} bytes but received {}", total_len, input.len());
+			let err_msg = "expected at more bytes";
 			return Err(ExitError::Other(err_msg.into()));
 		}
 
