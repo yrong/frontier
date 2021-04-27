@@ -872,41 +872,46 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 			Ok(used_gas)
 		};
 		if cfg!(feature = "rpc_binary_search_estimate") {
-			let mut lower = U256::from(21_000);
+			let mut lower = 21_000u64;
 			// TODO: get a good upper limit, but below U64::max to operation overflow
-			let mut upper = U256::from(1_000_000_000);
+			let mut upper = 100_000_000u64;
 			let mut mid = upper;
 			let mut best = mid;
-			let mut old_best: U256;
+			let mut old_best;
 
 			// if the gas estimation depends on the gas limit, then we want to binary
 			// search until the change is under some threshold. but if not dependent,
 			// we want to stop immediately.
-			let mut change_pct = U256::from(100);
-			let threshold_pct = U256::from(10);
+			let mut change_pct = 100;
+			let threshold_pct = 10;
 
 			// invariant: lower <= mid <= upper
 			while change_pct > threshold_pct {
 				let mut test_request = request.clone();
-				test_request.gas = Some(mid);
+				test_request.gas = Some(mid.into());
 				match calculate_gas_used(test_request) {
 					// if Ok -- try to reduce the gas used
 					Ok(used_gas) => {
 						old_best = best;
-						best = used_gas;
-						change_pct = (U256::from(100) * (old_best - best)) / old_best;
+						best = used_gas.low_u64(); // it's safe, u64 type is used in gas estimator
+						change_pct = (100 * (old_best - best)) / old_best;
 						upper = mid;
 						mid = (lower + upper + 1) / 2;
 					}
 
 					// if Err -- we need more gas
 					Err(_) => {
+                        if mid == upper {
+                            // call could fail on upper limit,
+                            // just exit after first calculation
+                            break;
+                        }
 						lower = mid;
 						mid = (lower + upper + 1) / 2;
 					}
 				}
 			}
-			Ok(best)
+			Ok(best.into())
 		} else {
 			calculate_gas_used(request)
 		}
