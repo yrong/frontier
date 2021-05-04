@@ -824,8 +824,14 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 					}
 
 					Err(err) => {
+                        // leave if error happens from start
+                        if upper == mid {
+                            break;
+                        }
+
 						// if Err == OutofGas or OutofFund, we need more gas
 						if err.code == ErrorCode::ServerError(0) {
+
 							lower = mid;
 							mid = (lower + upper + 1) / 2;
 							if mid == lower {
