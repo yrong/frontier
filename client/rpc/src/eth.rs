@@ -874,7 +874,7 @@ impl<B, C, P, CT, BE, H: ExHashT> EthApiT for EthApi<B, C, P, CT, BE, H> where
 		if cfg!(feature = "rpc_binary_search_estimate") {
 			let mut lower = 21_000u64;
 			// TODO: get a good upper limit, but below U64::max to operation overflow
-			let mut upper = 100_000_000u64;
+			let mut upper = 8_000_000u64;
 			let mut mid = upper;
 			let mut best = mid;
 			let mut old_best;
