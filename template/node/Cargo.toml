@@ -16,7 +16,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 structopt = "0.3.8"
 async-trait = "0.1"
-jsonrpc-pubsub = "18.0.0"
+jsonrpc-pubsub = "15.0.0"
 futures = "0.3"
 log = "0.4.8"
 
@@ -42,7 +42,7 @@ sp-timestamp = { git = "https://github.com/paritytech/substrate" }
 sp-inherents = { git = "https://github.com/paritytech/substrate" }
 
 # These dependencies are used for the node template's RPCs
-jsonrpc-core = "18.0.0"
+jsonrpc-core = "15.0.0"
 sc-rpc = { git = "https://github.com/paritytech/substrate" }
 sp-api = { git = "https://github.com/paritytech/substrate" }
 sc-rpc-api = { git = "https://github.com/paritytech/substrate" }
