@@ -11,7 +11,8 @@ use fc_rpc_core::types::FilterPool;
 use frontier_template_runtime::{self, opaque::Block, RuntimeApi, SLOT_DURATION};
 use futures::StreamExt;
 use sc_cli::SubstrateCli;
-use sc_client_api::{BlockchainEvents, ExecutorProvider, RemoteBackend};
+use sc_client_api::BlockchainEvents;
+use sc_client_api::{ExecutorProvider, RemoteBackend};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 #[cfg(feature = "manual-seal")]
 use sc_consensus_manual_seal::{self as manual_seal};
@@ -33,19 +34,25 @@ use std::{
 };
 
 // Our native executor instance.
-pub struct ExecutorDispatch;
+// pub struct ExecutorDispatch;
 
-impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
-	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
+// impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
+// 	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
 
-	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
-		frontier_template_runtime::api::dispatch(method, data)
-	}
+// 	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+// 		frontier_template_runtime::api::dispatch(method, data)
+// 	}
 
-	fn native_version() -> sc_executor::NativeVersion {
-		frontier_template_runtime::native_version()
-	}
-}
+// 	fn native_version() -> sc_executor::NativeVersion {
+// 		frontier_template_runtime::native_version()
+// 	}
+// }
+sc_executor::native_executor_instance!(
+	pub Executor,
+	frontier_template_runtime::api::dispatch,
+	frontier_template_runtime::native_version,
+	frame_benchmarking::benchmarking::HostFunctions,
+);
 
 type FullClient =
 	sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;

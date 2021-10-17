@@ -23,11 +23,14 @@ use futures::{
 };
 use futures_timer::Delay;
 use log::debug;
-use sc_client_api::{BlockOf, ImportNotifications};
+use sc_client_api::BlockOf;
+use sc_client_api::ImportNotifications;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::Block as BlockT;
-use std::{pin::Pin, sync::Arc, time::Duration};
+use std::pin::Pin;
+use std::sync::Arc;
+use std::time::Duration;
 
 const LIMIT: usize = 8;
 

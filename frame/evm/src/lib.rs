@@ -72,14 +72,12 @@ pub use fp_evm::{
 #[cfg(feature = "std")]
 use codec::{Decode, Encode};
 use evm::Config as EvmConfig;
-use frame_support::{
-	dispatch::DispatchResultWithPostInfo,
-	traits::{
-		tokens::fungible::Inspect, Currency, ExistenceRequirement, FindAuthor, Get, Imbalance,
-		OnUnbalanced, WithdrawReasons,
-	},
-	weights::{Pays, PostDispatchInfo, Weight},
+use frame_support::dispatch::DispatchResultWithPostInfo;
+use frame_support::traits::{
+	tokens::fungible::Inspect, Currency, ExistenceRequirement, FindAuthor, Get, Imbalance,
+	OnUnbalanced, WithdrawReasons,
 };
+use frame_support::weights::{Pays, PostDispatchInfo, Weight};
 use frame_system::RawOrigin;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -314,6 +312,7 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	#[pallet::metadata(T::AccountId = "AccountId")]
 	pub enum Event<T: Config> {
 		/// Ethereum events from contracts.
 		Log(Log),

@@ -20,10 +20,8 @@
 use super::*;
 use crate::mock::*;
 
-use frame_support::{
-	assert_ok,
-	traits::{GenesisBuild, LockIdentifier, LockableCurrency, WithdrawReasons},
-};
+use frame_support::assert_ok;
+use frame_support::traits::{GenesisBuild, LockIdentifier, LockableCurrency, WithdrawReasons};
 use std::{collections::BTreeMap, str::FromStr};
 
 type Balances = pallet_balances::Pallet<Test>;

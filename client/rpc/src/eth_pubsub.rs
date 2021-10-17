@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use log::warn;
-use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
 use rustc_hex::ToHex;
 use sc_client_api::{
 	backend::{Backend, StateBackend, StorageProvider},
@@ -28,16 +29,15 @@ use sc_transaction_pool_api::TransactionPool;
 use sp_api::{BlockId, ProvideRuntimeApi};
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use sp_runtime::traits::{BlakeTwo256, Block as BlockT, UniqueSaturatedInto};
-use std::{collections::BTreeMap, iter, marker::PhantomData, sync::Arc};
+use std::collections::BTreeMap;
+use std::{iter, marker::PhantomData, sync::Arc};
 
 use ethereum_types::{H256, U256};
-use fc_rpc_core::{
-	types::{
-		pubsub::{Kind, Params, PubSubSyncStatus, Result as PubSubResult},
-		Bytes, FilteredParams, Header, Log, Rich,
-	},
-	EthPubSubApi::{self as EthPubSubApiT},
+use fc_rpc_core::types::{
+	pubsub::{Kind, Params, PubSubSyncStatus, Result as PubSubResult},
+	Bytes, FilteredParams, Header, Log, Rich,
 };
+use fc_rpc_core::EthPubSubApi::{self as EthPubSubApiT};
 use jsonrpc_pubsub::{
 	manager::{IdProvider, SubscriptionManager},
 	typed::Subscriber,
@@ -46,10 +46,13 @@ use jsonrpc_pubsub::{
 use sha3::{Digest, Keccak256};
 
 pub use fc_rpc_core::EthPubSubApiServer;
-use futures::{FutureExt as _, SinkExt as _, StreamExt as _};
+use futures::{StreamExt as _, TryStreamExt as _};
 
 use fp_rpc::EthereumRuntimeRPCApi;
-use jsonrpc_core::Result as JsonRpcResult;
+use jsonrpc_core::{
+	futures::{Future, Sink},
+	Result as JsonRpcResult,
+};
 
 use sc_network::{ExHashT, NetworkService};
 
@@ -294,11 +297,10 @@ where
 							return Ok::<Result<PubSubResult, jsonrpc_core::types::error::Error>, ()>(
 								Ok(PubSubResult::Log(Box::new(x))),
 							);
-						});
-					stream
-						.forward(
-							sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e)),
-						)
+						})
+						.compat();
+					sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e))
+						.send_all(stream)
 						.map(|_| ())
 				});
 			}
@@ -328,11 +330,10 @@ where
 						})
 						.map(|block| {
 							return Ok::<_, ()>(Ok(SubscriptionResult::new().new_heads(block)));
-						});
-					stream
-						.forward(
-							sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e)),
-						)
+						})
+						.compat();
+					sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e))
+						.send_all(stream)
 						.map(|_| ())
 				});
 			}
@@ -369,11 +370,10 @@ where
 									Keccak256::digest(&rlp::encode(&transaction)).as_slice(),
 								))),
 							);
-						});
-					stream
-						.forward(
-							sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e)),
-						)
+						})
+						.compat();
+					sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e))
+						.send_all(stream)
 						.map(|_| ())
 				});
 			}
@@ -397,11 +397,10 @@ where
 									syncing: syncing,
 								})),
 							);
-						});
-					stream
-						.forward(
-							sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e)),
-						)
+						})
+						.compat();
+					sink.sink_map_err(|e| warn!("Error sending notifications: {:?}", e))
+						.send_all(stream)
 						.map(|_| ())
 				});
 			}

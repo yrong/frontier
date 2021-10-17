@@ -22,20 +22,23 @@ use crate::{
 use ethereum::{BlockV0 as EthereumBlock, TransactionV0 as EthereumTransaction};
 use ethereum_types::{H160, H256, H512, H64, U256, U64};
 use evm::ExitReason;
+use fc_rpc_core::types::{
+	Block, BlockNumber, BlockTransactions, Bytes, CallRequest, Filter, FilterChanges, FilterPool,
+	FilterPoolItem, FilterType, FilteredParams, Header, Index, Log, PeerCount, Receipt, Rich,
+	RichBlock, SyncInfo, SyncStatus, Transaction, TransactionRequest, Work,
+};
 use fc_rpc_core::{
-	types::{
-		Block, BlockNumber, BlockTransactions, Bytes, CallRequest, Filter, FilterChanges,
-		FilterPool, FilterPoolItem, FilterType, FilteredParams, Header, Index, Log, PeerCount,
-		Receipt, Rich, RichBlock, SyncInfo, SyncStatus, Transaction, TransactionRequest, Work,
-	},
 	EthApi as EthApiT, EthFilterApi as EthFilterApiT, NetApi as NetApiT, Web3Api as Web3ApiT,
 };
 use fp_rpc::{ConvertTransaction, EthereumRuntimeRPCApi, TransactionStatus};
 use futures::{future::TryFutureExt, StreamExt};
-use jsonrpc_core::{futures::future, BoxFuture, Result};
+use jsonrpc_core::{
+	futures::future::{self, Future},
+	BoxFuture, Result,
+};
 use lru::LruCache;
 use sc_client_api::{
-	backend::{Backend, StateBackend, StorageProvider},
+	backend::{AuxStore, Backend, StateBackend, StorageProvider},
 	client::BlockchainEvents,
 };
 use sc_network::{ExHashT, NetworkService};
@@ -48,8 +51,8 @@ use sp_runtime::{
 	traits::{BlakeTwo256, Block as BlockT, NumberFor, One, Saturating, UniqueSaturatedInto, Zero},
 	transaction_validity::TransactionSource,
 };
+use std::collections::BTreeMap;
 use std::{
-	collections::BTreeMap,
 	marker::PhantomData,
 	sync::{Arc, Mutex},
 	time,
@@ -279,7 +282,7 @@ where
 	let address_bloom_filter = FilteredParams::adresses_bloom_filter(&filter.address);
 	let topics_bloom_filter = FilteredParams::topics_bloom_filter(&topics_input);
 
-	// Get schema cache. A single read before the block range iteration.
+	// Get schema cache. A single AuxStore read before the block range iteration.
 	// This prevents having to do an extra DB read per block range iteration to getthe actual schema.
 	let mut local_cache: BTreeMap<NumberFor<B>, EthereumStorageSchema> = BTreeMap::new();
 	if let Ok(Some(schema_cache)) = frontier_backend_client::load_cached_schema::<B>(backend) {
@@ -423,7 +426,7 @@ fn filter_block_logs<'a>(
 
 impl<B, C, P, CT, BE, H: ExHashT, A> EthApiT for EthApi<B, C, P, CT, BE, H, A>
 where
-	C: ProvideRuntimeApi<B> + StorageProvider<B, BE>,
+	C: ProvideRuntimeApi<B> + StorageProvider<B, BE> + AuxStore,
 	C: HeaderBackend<B> + HeaderMetadata<B, Error = BlockChainError> + 'static,
 	C::Api: EthereumRuntimeRPCApi<B>,
 	BE: Backend<B> + 'static,
@@ -763,18 +766,18 @@ where
 		Ok(Bytes(vec![]))
 	}
 
-	fn send_transaction(&self, request: TransactionRequest) -> BoxFuture<Result<H256>> {
+	fn send_transaction(&self, request: TransactionRequest) -> BoxFuture<H256> {
 		let from = match request.from {
 			Some(from) => from,
 			None => {
 				let accounts = match self.accounts() {
 					Ok(accounts) => accounts,
-					Err(e) => return Box::pin(future::err(e)),
+					Err(e) => return Box::new(future::result(Err(e))),
 				};
 
 				match accounts.get(0) {
 					Some(account) => account.clone(),
-					None => return Box::pin(future::err(internal_err("no signer available"))),
+					None => return Box::new(future::err(internal_err("no signer available"))),
 				}
 			}
 		};
@@ -783,13 +786,13 @@ where
 			Some(nonce) => nonce,
 			None => match self.transaction_count(from, None) {
 				Ok(nonce) => nonce,
-				Err(e) => return Box::pin(future::err(e)),
+				Err(e) => return Box::new(future::result(Err(e))),
 			},
 		};
 
 		let chain_id = match self.chain_id() {
 			Ok(chain_id) => chain_id,
-			Err(e) => return Box::pin(future::err(e)),
+			Err(e) => return Box::new(future::result(Err(e))),
 		};
 
 		let message = ethereum::LegacyTransactionMessage {
@@ -811,7 +814,7 @@ where
 			if signer.accounts().contains(&from) {
 				match signer.sign(message, &from) {
 					Ok(t) => transaction = Some(t),
-					Err(e) => return Box::pin(future::err(e)),
+					Err(e) => return Box::new(future::result(Err(e))),
 				}
 				break;
 			}
@@ -819,12 +822,12 @@ where
 
 		let transaction = match transaction {
 			Some(transaction) => transaction,
-			None => return Box::pin(future::err(internal_err("no signer available"))),
+			None => return Box::new(future::result(Err(internal_err("no signer available")))),
 		};
 		let transaction_hash =
 			H256::from_slice(Keccak256::digest(&rlp::encode(&transaction)).as_slice());
 		let hash = self.client.info().best_hash;
-		Box::pin(
+		Box::new(
 			self.pool
 				.submit_one(
 					&BlockId::hash(hash),
@@ -832,22 +835,27 @@ where
 					self.convert_transaction
 						.convert_transaction(transaction.clone()),
 				)
-				.map_ok(move |_| transaction_hash)
+				.compat()
+				.map(move |_| transaction_hash)
 				.map_err(|err| {
 					internal_err(format!("submit transaction to pool failed: {:?}", err))
 				}),
 		)
 	}
 
-	fn send_raw_transaction(&self, bytes: Bytes) -> BoxFuture<Result<H256>> {
+	fn send_raw_transaction(&self, bytes: Bytes) -> BoxFuture<H256> {
 		let transaction = match rlp::decode::<ethereum::TransactionV0>(&bytes.0[..]) {
 			Ok(transaction) => transaction,
-			Err(_) => return Box::pin(future::err(internal_err("decode transaction failed"))),
+			Err(_) => {
+				return Box::new(future::result(Err(internal_err(
+					"decode transaction failed",
+				))))
+			}
 		};
 		let transaction_hash =
 			H256::from_slice(Keccak256::digest(&rlp::encode(&transaction)).as_slice());
 		let hash = self.client.info().best_hash;
-		Box::pin(
+		Box::new(
 			self.pool
 				.submit_one(
 					&BlockId::hash(hash),
@@ -855,7 +863,8 @@ where
 					self.convert_transaction
 						.convert_transaction(transaction.clone()),
 				)
-				.map_ok(move |_| transaction_hash)
+				.compat()
+				.map(move |_| transaction_hash)
 				.map_err(|err| {
 					internal_err(format!("submit transaction to pool failed: {:?}", err))
 				}),
@@ -1083,12 +1092,12 @@ where
 		}
 		#[cfg(feature = "rpc_binary_search_estimate")]
 		{
-			// Start close to the used gas for faster binary search
-			let mut mid = used_gas * 3;
-
 			// Define the lower bound of the binary search
 			const MIN_GAS_PER_TX: U256 = U256([21_000, 0, 0, 0]);
 			let mut lowest = MIN_GAS_PER_TX;
+
+			// Start close to the used gas for faster binary search
+			let mut mid = std::cmp::min(used_gas * 3, (highest + lowest) / 2);
 
 			// Execute the binary search and hone in on an executable gas limit.
 			let mut previous_highest = highest;
@@ -1505,7 +1514,7 @@ impl<B: BlockT, BE, C, H: ExHashT> NetApi<B, BE, C, H> {
 
 impl<B: BlockT, BE, C, H: ExHashT> NetApiT for NetApi<B, BE, C, H>
 where
-	C: ProvideRuntimeApi<B> + StorageProvider<B, BE>,
+	C: ProvideRuntimeApi<B> + StorageProvider<B, BE> + AuxStore,
 	C: HeaderBackend<B> + HeaderMetadata<B, Error = BlockChainError> + 'static,
 	C::Api: EthereumRuntimeRPCApi<B>,
 	BE: Backend<B> + 'static,
@@ -1552,7 +1561,7 @@ impl<B, C> Web3Api<B, C> {
 
 impl<B, C> Web3ApiT for Web3Api<B, C>
 where
-	C: ProvideRuntimeApi<B>,
+	C: ProvideRuntimeApi<B> + AuxStore,
 	C::Api: EthereumRuntimeRPCApi<B>,
 	C: HeaderBackend<B> + HeaderMetadata<B, Error = BlockChainError> + 'static,
 	C: Send + Sync + 'static,
@@ -1932,7 +1941,7 @@ where
 							// Decode the wrapped blob which's type is known.
 							let new_schema: EthereumStorageSchema =
 								Decode::decode(&mut &data.0[..]).unwrap();
-							// Cache new entry and overwrite the old database value.
+							// Cache new entry and overwrite the AuxStore value.
 							if let Ok(Some(old_cache)) =
 								frontier_backend_client::load_cached_schema::<B>(backend.as_ref())
 							{
@@ -1940,7 +1949,7 @@ where
 								match &new_cache[..] {
 									[.., (schema, _)] if *schema == new_schema => {
 										warn!(
-											"Schema version already in Frontier database, ignoring: {:?}",
+											"Schema version already in AuxStore, ignoring: {:?}",
 											new_schema
 										);
 									}
