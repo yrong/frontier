@@ -389,11 +389,11 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 			let deps = crate::rpc::FullDeps {
 				client: client.clone(),
 				pool: pool.clone(),
+				graph: pool.pool().clone(),
 				deny_unsafe,
 				is_authority,
 				enable_dev_signer,
 				network: network.clone(),
-				pending_transactions: pending.clone(),
 				filter_pool: filter_pool.clone(),
 				backend: frontier_backend.clone(),
 				max_past_logs,
@@ -442,19 +442,6 @@ pub fn new_full(mut config: Configuration, cli: &Cli) -> Result<TaskManager, Ser
 		task_manager.spawn_essential_handle().spawn(
 			"frontier-filter-pool",
 			EthTask::filter_pool_task(Arc::clone(&client), filter_pool, FILTER_RETAIN_THRESHOLD),
-		);
-	}
-
-	// Spawn Frontier pending transactions maintenance task (as essential, otherwise we leak).
-	if let Some(pending_transactions) = pending_transactions {
-		const TRANSACTION_RETAIN_THRESHOLD: u64 = 5;
-		task_manager.spawn_essential_handle().spawn(
-			"frontier-pending-transactions",
-			EthTask::pending_transaction_task(
-				Arc::clone(&client),
-				pending_transactions,
-				TRANSACTION_RETAIN_THRESHOLD,
-			),
 		);
 	}
 
