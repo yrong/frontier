@@ -1,11 +1,11 @@
 # Substrate Node Template Release Process
 
 > NOTE: this is a
-> [copy from Subtrate](https://github.com/paritytech/substrate/blob/master/docs/node-template-release.md) -
+> [copy from Subtrate](https://github.com/PlasmNetwork/substrate/blob/master/docs/node-template-release.md) -
 > there is NO frontier template on the devhub at present. This file only serves as a reference.
 
 1.  This release process has to be run in a github checkout Substrate directory with your work
-    committed into `https://github.com/paritytech/substrate/`, because the build script will check
+    committed into `https://github.com/PlasmNetwork/substrate/`, because the build script will check
     the existence of your current git commit ID in the remote repository.
 
         Assume you are in root directory of Substrate. Run:
@@ -39,7 +39,7 @@
         ```toml
         [dev-dependencies.sp-core]
         default-features = false
-        git = 'https://github.com/paritytech/substrate.git'
+        git = 'https://github.com/PlasmNetwork/substrate.git'
         rev = 'c1fe59d060600a10eebb4ace277af1fee20bad17'
         version = '3.0.0'
         ```
