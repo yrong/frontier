@@ -161,9 +161,5 @@ pub fn ensure_log<Hash>(digest: &Digest<Hash>) -> Result<(), FindLogError> {
 		}
 	}
 
-	if found {
-		Ok(())
-	} else {
-		Err(FindLogError::NotFound)
-	}
+	Ok(())
 }
