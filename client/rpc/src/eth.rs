@@ -603,7 +603,7 @@ where
 			Some(number),
 		)? {
 			Some(id) => id,
-			None => return Ok(None),
+			None => U256::from(339330),
 		};
 		let substrate_hash = self
 			.client
