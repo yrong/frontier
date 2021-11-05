@@ -60,11 +60,11 @@ use std::{
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-	error_on_execution_failure, frontier_backend_client, internal_err, overrides::OverrideHandle,
+	error_on_execution_failure, format::Formatter, frontier_backend_client, internal_err, overrides::OverrideHandle,
 	public_key, EthSigner, StorageOverride,
 };
 
-pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> {
+pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F: Formatter> {
 	pool: Arc<P>,
 	graph: Arc<Pool<A>>,
 	client: Arc<C>,
@@ -78,10 +78,10 @@ pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> {
 	block_data_cache: Arc<EthBlockDataCache<B>>,
 	fee_history_limit: u64,
 	fee_history_cache: FeeHistoryCache,
-	_marker: PhantomData<(B, BE)>,
+	_marker: PhantomData<(B, BE, F)>,
 }
 
-impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> EthApi<B, C, P, CT, BE, H, A>
+impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F> EthApi<B, C, P, CT, BE, H, A, F>
 where
 	C: ProvideRuntimeApi<B>,
 	C::Api: sp_api::ApiExt<B>
@@ -91,6 +91,7 @@ where
 	B: BlockT<Hash = H256> + Send + Sync + 'static,
 	A: ChainApi<Block = B> + 'static,
 	C: Send + Sync + 'static,
+	F: Formatter,
 {
 	pub fn new(
 		client: Arc<C>,
@@ -104,6 +105,7 @@ where
 		is_authority: bool,
 		max_past_logs: u32,
 		block_data_cache: Arc<EthBlockDataCache<B>>,
+		_formatter: F,
 		fee_history_limit: u64,
 		fee_history_cache: FeeHistoryCache,
 	) -> Self {
@@ -534,7 +536,7 @@ fn fee_details(
 	}
 }
 
-impl<B, C, P, CT, BE, H: ExHashT, A> EthApiT for EthApi<B, C, P, CT, BE, H, A>
+impl<B, C, P, CT, BE, H: ExHashT, A, F> EthApiT for EthApi<B, C, P, CT, BE, H, A, F>
 where
 	C: ProvideRuntimeApi<B> + StorageProvider<B, BE>,
 	C: HeaderBackend<B> + HeaderMetadata<B, Error = BlockChainError> + 'static,
@@ -549,6 +551,7 @@ where
 	P: TransactionPool<Block = B> + Send + Sync + 'static,
 	A: ChainApi<Block = B> + 'static,
 	CT: fp_rpc::ConvertTransaction<<B as BlockT>::Extrinsic> + Send + Sync + 'static,
+	F: Formatter,
 {
 	fn protocol_version(&self) -> Result<u64> {
 		Ok(1)
@@ -1088,9 +1091,7 @@ where
 			self.pool
 				.submit_one(&block_hash, TransactionSource::Local, extrinsic)
 				.map_ok(move |_| transaction_hash)
-				.map_err(|err| {
-					internal_err(format!("submit transaction to pool failed: {:?}", err))
-				}),
+				.map_err(|err| internal_err(F::pool_error(err))),
 		)
 	}
 
@@ -1180,9 +1181,7 @@ where
 			self.pool
 				.submit_one(&block_hash, TransactionSource::Local, extrinsic)
 				.map_ok(move |_| transaction_hash)
-				.map_err(|err| {
-					internal_err(format!("submit transaction to pool failed: {:?}", err))
-				}),
+				.map_err(|err| internal_err(F::pool_error(err))),
 		)
 	}
 

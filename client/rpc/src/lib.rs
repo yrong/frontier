@@ -20,6 +20,8 @@ mod eth;
 mod eth_pubsub;
 mod overrides;
 
+pub mod format;
+
 pub use self::{
 	eth::{
 		EthApi, EthApiServer, EthBlockDataCache, EthFilterApi, EthFilterApiServer, EthTask, NetApi,
