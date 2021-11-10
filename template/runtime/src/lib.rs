@@ -9,6 +9,7 @@
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use codec::{Decode, Encode};
+use pallet_evm::FeeCalculator;
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
@@ -51,6 +52,9 @@ use pallet_transaction_payment::CurrencyAdapter;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
+
+mod precompiles;
+use precompiles::FrontierPrecompiles;
 
 /// Type of block number.
 pub type BlockNumber = u32;
@@ -297,10 +301,11 @@ impl<F: FindAuthor<u32>> FindAuthor<H160> for FindAuthorTruncated<F> {
 parameter_types! {
 	pub const ChainId: u64 = 42;
 	pub BlockGasLimit: U256 = U256::from(u32::max_value());
+	pub PrecompilesValue: FrontierPrecompiles<Runtime> = FrontierPrecompiles::<_>::new();
 }
 
 impl pallet_evm::Config for Runtime {
-	type FeeCalculator = pallet_dynamic_fee::Pallet<Self>;
+	type FeeCalculator = BaseFee;
 	type GasWeightMapping = ();
 	type BlockHashMapping = pallet_ethereum::EthereumBlockHashMapping<Self>;
 	type CallOrigin = EnsureAddressTruncated;
@@ -309,16 +314,8 @@ impl pallet_evm::Config for Runtime {
 	type Currency = Balances;
 	type Event = Event;
 	type Runner = pallet_evm::runner::stack::Runner<Self>;
-	type Precompiles = (
-		pallet_evm_precompile_simple::ECRecover,
-		pallet_evm_precompile_simple::Sha256,
-		pallet_evm_precompile_simple::Ripemd160,
-		pallet_evm_precompile_simple::Identity,
-		pallet_evm_precompile_modexp::Modexp,
-		pallet_evm_precompile_simple::ECRecoverPublicKey,
-		pallet_evm_precompile_sha3fips::Sha3FIPS256,
-		pallet_evm_precompile_sha3fips::Sha3FIPS512,
-	);
+	type PrecompilesType = FrontierPrecompiles<Self>;
+	type PrecompilesValue = PrecompilesValue;
 	type ChainId = ChainId;
 	type BlockGasLimit = BlockGasLimit;
 	type OnChargeTransaction = ();
@@ -336,6 +333,21 @@ frame_support::parameter_types! {
 
 impl pallet_dynamic_fee::Config for Runtime {
 	type MinGasPriceBoundDivisor = BoundDivision;
+}
+
+pub struct BaseFeeThreshold;
+impl pallet_base_fee::BaseFeeThreshold for BaseFeeThreshold {
+	fn lower() -> Permill {
+		Permill::zero()
+	}
+	fn upper() -> Permill {
+		Permill::from_parts(1_000_000)
+	}
+}
+
+impl pallet_base_fee::Config for Runtime {
+	type Event = Event;
+	type Threshold = BaseFeeThreshold;
 }
 
 impl pallet_randomness_collective_flip::Config for Runtime {}
@@ -358,6 +370,7 @@ construct_runtime!(
 		Ethereum: pallet_ethereum::{Pallet, Call, Storage, Event, Config, Origin},
 		EVM: pallet_evm::{Pallet, Config, Call, Storage, Event<T>},
 		DynamicFee: pallet_dynamic_fee::{Pallet, Call, Storage, Config, Inherent},
+		BaseFee: pallet_base_fee::{Pallet, Call, Storage, Config<T>, Event},
 	}
 );
 
@@ -573,7 +586,8 @@ impl_runtime_apis! {
 			data: Vec<u8>,
 			value: U256,
 			gas_limit: U256,
-			gas_price: Option<U256>,
+			max_fee_per_gas: Option<U256>,
+			max_priority_fee_per_gas: Option<U256>,
 			nonce: Option<U256>,
 			estimate: bool,
 		) -> Result<pallet_evm::CallInfo, sp_runtime::DispatchError> {
@@ -591,8 +605,10 @@ impl_runtime_apis! {
 				data,
 				value,
 				gas_limit.low_u64(),
-				gas_price,
+				max_fee_per_gas,
+				max_priority_fee_per_gas,
 				nonce,
+				Vec::new(),
 				config.as_ref().unwrap_or(<Runtime as pallet_evm::Config>::config()),
 			).map_err(|err| err.into())
 		}
@@ -602,7 +618,8 @@ impl_runtime_apis! {
 			data: Vec<u8>,
 			value: U256,
 			gas_limit: U256,
-			gas_price: Option<U256>,
+			max_fee_per_gas: Option<U256>,
+			max_priority_fee_per_gas: Option<U256>,
 			nonce: Option<U256>,
 			estimate: bool,
 		) -> Result<pallet_evm::CreateInfo, sp_runtime::DispatchError> {
@@ -619,8 +636,10 @@ impl_runtime_apis! {
 				data,
 				value,
 				gas_limit.low_u64(),
-				gas_price,
+				max_fee_per_gas,
+				max_priority_fee_per_gas,
 				nonce,
+				Vec::new(),
 				config.as_ref().unwrap_or(<Runtime as pallet_evm::Config>::config()),
 			).map_err(|err| err.into())
 		}
@@ -653,7 +672,7 @@ impl_runtime_apis! {
 			xts: Vec<<Block as BlockT>::Extrinsic>,
 		) -> Vec<EthereumTransaction> {
 			xts.into_iter().filter_map(|xt| match xt.0.function {
-				Call::Ethereum(transact {transaction}) => Some(transaction),
+				Call::Ethereum(transact { transaction }) => Some(transaction),
 				_ => None
 			}).collect::<Vec<EthereumTransaction>>()
 		}

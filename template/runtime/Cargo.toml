@@ -35,6 +35,7 @@ pallet-sudo = { default-features = false, git = "https://github.com/purestake/su
 pallet-timestamp = { default-features = false, git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
 pallet-transaction-payment = { default-features = false, git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
 pallet-transaction-payment-rpc-runtime-api = { default-features = false, git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
+pallet-base-fee = { default-features = false, path = "../../frame/base-fee" }
 
 sp-api = { default-features = false, git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
 sp-block-builder = { default-features = false, git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13"}
@@ -87,6 +88,7 @@ std = [
 	"pallet-timestamp/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-transaction-payment/std",
+	"pallet-base-fee/std",
 
 	"sp-api/std",
 	"sp-block-builder/std",
