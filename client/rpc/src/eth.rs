@@ -113,6 +113,33 @@ where
 	}
 }
 
+fn empty_block_from(
+	parent_hash: H256,
+	number: U256,
+) -> ethereum::BlockV0 {
+	let ommers = Vec::<ethereum::Header>::new();
+	let receipts = Vec::<ethereum::Receipt>::new();
+	let receipts_root =
+		ethereum::util::ordered_trie_root(receipts.iter().map(|r| rlp::encode(r)));
+	let logs_bloom = ethereum_types::Bloom::default();
+	let partial_header = ethereum::PartialHeader {
+		parent_hash,
+		beneficiary: Default::default(),
+		state_root: Default::default(),
+		receipts_root,
+		logs_bloom,
+		difficulty: U256::zero(),
+		number,
+		gas_limit: U256::from(4_000_000),
+		gas_used: U256::zero(),
+		timestamp: Default::default(),
+		extra_data: Vec::new(),
+		mix_hash: H256::default(),
+		nonce: H64::default(),
+	};
+	ethereum::Block::new(partial_header, Default::default(), ommers)
+}
+
 fn rich_block_build(
 	block: ethereum::BlockV0,
 	statuses: Vec<Option<TransactionStatus>>,
@@ -600,7 +627,7 @@ where
 		let id = match frontier_backend_client::native_block_id::<B, C>(
 			self.client.as_ref(),
 			self.backend.as_ref(),
-			Some(number),
+			Some(number.clone()),
 		)? {
 			Some(id) => id,
 			None => return Ok(None),
@@ -635,7 +662,29 @@ where
 					full,
 				)))
 			}
-			_ => Ok(None),
+			_ => {
+				if let BlockNumber::Num(block_number) = number {
+					let parent_id = BlockId::Number(block_number.saturating_sub(1).unique_saturated_into());
+					let parent_hash = self
+						.client
+						.expect_block_hash_from_id(&parent_id)
+						.map_err(|_| internal_err(format!("Expect block number from id: {}", parent_id)))?;
+
+					let block = empty_block_from(parent_hash, block_number.into());
+
+					let hash =
+						H256::from_slice(Keccak256::digest(&rlp::encode(&block.header)).as_slice());
+
+					Ok(Some(rich_block_build(
+						block,
+						Default::default(),
+						Some(hash),
+						full,
+					)))
+				} else {
+					Ok(None)
+				}
+			}
 		}
 	}
 
