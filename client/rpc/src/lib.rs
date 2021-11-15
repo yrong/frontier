@@ -138,8 +138,8 @@ pub mod frontier_backend_client {
 		match client.storage(&at, &StorageKey(PALLET_ETHEREUM_SCHEMA.to_vec())) {
 			Ok(Some(bytes)) => Decode::decode(&mut &bytes.0[..])
 				.ok()
-				.unwrap_or(EthereumStorageSchema::Undefined),
-			_ => EthereumStorageSchema::Undefined,
+				.unwrap_or(EthereumStorageSchema::V1),
+			_ => EthereumStorageSchema::V1,
 		}
 	}
 
