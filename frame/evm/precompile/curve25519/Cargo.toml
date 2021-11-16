@@ -2,16 +2,16 @@
 name = "pallet-evm-precompile-curve25519"
 version = "1.0.0-dev"
 authors = ["Parity Technologies <admin@parity.io>", "Drew Stone <drew@webb.tools>"]
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
 homepage = "https://substrate.io"
 repository = "https://github.com/paritytech/frontier/"
 description = "Curve25519 elliptic curve precompiles for EVM pallet."
 
 [dependencies]
-sp-core = { version = "4.0.0-dev", default-features = false, git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.12" }
-sp-io = { version = "4.0.0-dev", default-features = false, git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.12" }
-frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.12" }
+sp-core = { version = "4.0.0-dev", default-features = false, git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
+sp-io = { version = "4.0.0-dev", default-features = false, git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
+frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
 fp-evm = { version = "3.0.0-dev", default-features = false, path = "../../../../primitives/evm" }
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
 
