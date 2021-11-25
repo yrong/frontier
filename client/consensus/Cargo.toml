@@ -22,7 +22,7 @@ fc-db = { version = "2.0.0-dev", path = "../db" }
 sp-consensus = { version = "0.10.0-dev", git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
 sc-consensus = { version = "0.10.0-dev", git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
 log = "0.4.8"
-futures = { version = "0.3.1", features = ["compat"] }
+futures = { version = "0.3.17", features = ["compat"] }
 sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
 derive_more = "0.99.2"
 prometheus-endpoint = { version = "0.10.0-dev", package = "substrate-prometheus-endpoint", git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
