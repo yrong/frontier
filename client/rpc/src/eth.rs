@@ -114,7 +114,6 @@ where
 }
 
 fn empty_block_from(
-	parent_hash: H256,
 	number: U256,
 ) -> ethereum::BlockV0 {
 	let ommers = Vec::<ethereum::Header>::new();
@@ -123,7 +122,7 @@ fn empty_block_from(
 		ethereum::util::ordered_trie_root(receipts.iter().map(|r| rlp::encode(r)));
 	let logs_bloom = ethereum_types::Bloom::default();
 	let partial_header = ethereum::PartialHeader {
-		parent_hash,
+		parent_hash: H256::default(),
 		beneficiary: Default::default(),
 		state_root: Default::default(),
 		receipts_root,
@@ -619,7 +618,29 @@ where
 				Some(hash),
 				full,
 			))),
-			_ => Ok(None),
+			_ => {
+                if let Some(header) = 
+                    self.client
+                        .header(id)
+                        .map_err(|_| internal_err(format!("Expect block header from id: {}", id)))?
+                {
+                    let block_number: u64 = UniqueSaturatedInto::<u64>::unique_saturated_into(
+                        *header.number(),
+                    );
+				    let eth_block = empty_block_from(block_number.into());
+				    let eth_hash =
+					    H256::from_slice(Keccak256::digest(&rlp::encode(&eth_block.header)).as_slice());
+
+				    Ok(Some(rich_block_build(
+					    eth_block,
+					    Default::default(),
+					    Some(eth_hash),
+					    full,
+				    )))
+                } else {
+                    Ok(None)
+                }
+            }
 		}
 	}
 
@@ -663,27 +684,20 @@ where
 				)))
 			}
 			_ => {
-				if let BlockNumber::Num(block_number) = number {
-					let parent_id = BlockId::Number(block_number.saturating_sub(1).unique_saturated_into());
-					let parent_hash = self
-						.client
-						.expect_block_hash_from_id(&parent_id)
-						.map_err(|_| internal_err(format!("Expect block number from id: {}", parent_id)))?;
+                if let BlockNumber::Num(block_number) = number {
+				    let eth_block = empty_block_from(block_number.into());
+				    let eth_hash =
+					    H256::from_slice(Keccak256::digest(&rlp::encode(&eth_block.header)).as_slice());
 
-					let block = empty_block_from(parent_hash, block_number.into());
-
-					let hash =
-						H256::from_slice(Keccak256::digest(&rlp::encode(&block.header)).as_slice());
-
-					Ok(Some(rich_block_build(
-						block,
-						Default::default(),
-						Some(hash),
-						full,
-					)))
-				} else {
-					Ok(None)
-				}
+				    Ok(Some(rich_block_build(
+					    eth_block,
+					    Default::default(),
+					    Some(eth_hash),
+					    full,
+				    )))
+                } else {
+                    Ok(None)
+                }
 			}
 		}
 	}
