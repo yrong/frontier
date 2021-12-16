@@ -27,6 +27,7 @@ sp-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/puresta
 sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
 sp-storage = { version = "4.0.0-dev", git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
 sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
+sp-block-builder = { version = "4.0.0-dev", git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
 sc-transaction-pool-api = { version = "4.0.0-dev", git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
 sc-service = { version = "0.10.0-dev", git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
 sc-client-api = { version = "4.0.0-dev", git = "https://github.com/purestake/substrate", branch = "moonbeam-polkadot-v0.9.13" }
