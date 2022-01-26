@@ -1015,23 +1015,24 @@ where
 		};
 		let transaction_hash = transaction.hash();
 
-		let block_hash = BlockId::hash(self.client.info().best_hash);
+		let block_id = BlockId::hash(self.client.info().best_hash);
 		let api_version = match self.client
 		.runtime_api()
-		.api_version::<dyn ConvertTransactionRuntimeApi<B>>(&block_hash) {
+		.api_version::<dyn ConvertTransactionRuntimeApi<B>>(&block_id) {
 			Ok(api_version) => api_version,
 			_ => return Box::pin(future::err(internal_err("cannot access runtime api")))
 		};
 
 		let extrinsic = match api_version {
 			Some(2) => match self.client.runtime_api()
-				.convert_transaction(&block_hash, transaction) {
+				.convert_transaction(&block_id, transaction) {
 					Ok(extrinsic) => extrinsic,
 					Err(_) => return Box::pin(future::err(internal_err("cannot access runtime api"))),
 				},
 			Some(1) => if let ethereum::TransactionV2::Legacy(legacy_transaction) = transaction {
+				#[allow(deprecated)]
 				match self.client.runtime_api()
-					.convert_transaction_before_version_2(&block_hash, legacy_transaction) {
+					.convert_transaction_before_version_2(&block_id, legacy_transaction) {
 						Ok(extrinsic) => extrinsic,
 						Err(_) => return Box::pin(future::err(internal_err("cannot access runtime api"))),
 					}
@@ -1045,7 +1046,7 @@ where
 		Box::pin(
 			self.pool
 				.submit_one(
-					&block_hash,
+					&block_id,
 					TransactionSource::Local,
 					extrinsic,
 				)
@@ -1081,23 +1082,24 @@ where
 
 		let transaction_hash = transaction.hash();
 
-		let block_hash = BlockId::hash(self.client.info().best_hash);
+		let block_id = BlockId::hash(self.client.info().best_hash);
 		let api_version = match self.client
 		.runtime_api()
-		.api_version::<dyn ConvertTransactionRuntimeApi<B>>(&block_hash) {
+		.api_version::<dyn ConvertTransactionRuntimeApi<B>>(&block_id) {
 			Ok(api_version) => api_version,
 			_ => return Box::pin(future::err(internal_err("cannot access runtime api")))
 		};
 
 		let extrinsic = match api_version {
 			Some(2) => match self.client.runtime_api()
-				.convert_transaction(&block_hash, transaction) {
+				.convert_transaction(&block_id, transaction) {
 					Ok(extrinsic) => extrinsic,
 					Err(_) => return Box::pin(future::err(internal_err("cannot access runtime api"))),
 				},
 			Some(1) => if let ethereum::TransactionV2::Legacy(legacy_transaction) = transaction {
+				#[allow(deprecated)]
 				match self.client.runtime_api()
-					.convert_transaction_before_version_2(&block_hash, legacy_transaction) {
+					.convert_transaction_before_version_2(&block_id, legacy_transaction) {
 						Ok(extrinsic) => extrinsic,
 						Err(_) => return Box::pin(future::err(internal_err("cannot access runtime api"))),
 					}
@@ -1111,7 +1113,7 @@ where
 		Box::pin(
 			self.pool
 				.submit_one(
-					&block_hash,
+					&block_id,
 					TransactionSource::Local,
 					extrinsic,
 				)
