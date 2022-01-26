@@ -49,7 +49,7 @@ use sp_std::{marker::PhantomData, prelude::*};
 
 pub use ethereum::{
 	AccessListItem, BlockV2 as Block, LegacyTransactionMessage, Log, ReceiptV3 as Receipt,
-	TransactionAction, TransactionV2 as Transaction,
+	TransactionAction, TransactionV2 as Transaction, TransactionV0 as LegacyTransaction
 };
 pub use fp_rpc::TransactionStatus;
 
