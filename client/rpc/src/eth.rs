@@ -1413,13 +1413,11 @@ where
 			}
 		};
 
-		let api = self.client.runtime_api();
-
 		// Recap the highest gas allowance with account's balance.
 		if let Some(from) = request.from {
 			let gas_price = gas_price.unwrap_or_default();
 			if gas_price > U256::zero() {
-				let balance = api
+				let balance = self.client.runtime_api()
 					.account_basic(&BlockId::Hash(best_hash), from)
 					.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
 					.balance;
@@ -1451,6 +1449,8 @@ where
 			used_gas: U256,
 		}
 
+		let client = self.client.clone();
+
 		// Create a helper to check if a gas allowance results in an executable transaction
 		let executable =
 			move |request: CallRequest, gas_limit, api_version| -> Result<ExecutableResult> {
@@ -1464,6 +1464,9 @@ where
 					access_list,
 					..
 				} = request;
+
+				// Fresh instance per execution
+				let api = client.runtime_api();
 
 				// Use request gas limit only if it less than gas_limit parameter
 				let gas_limit = core::cmp::min(gas.unwrap_or(gas_limit), gas_limit);
