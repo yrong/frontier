@@ -1523,6 +1523,7 @@ where
 				used_gas: U256,
 			}
 
+			let client_inner = client.clone();
 			// Create a helper to check if a gas allowance results in an executable transaction
 			#[rustfmt::skip]
 			let executable = move |request, gas_limit, api_version, estimate_mode| -> Result<ExecutableResult> {
@@ -1536,6 +1537,9 @@ where
 					access_list,
 					..
 				} = request;
+
+				// Fresh instance per execution
+				let api = client_inner.runtime_api();
 
 				// Use request gas limit only if it less than gas_limit parameter
 				let gas_limit = core::cmp::min(gas.unwrap_or(gas_limit), gas_limit);
