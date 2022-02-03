@@ -124,6 +124,33 @@ where
 	}
 }
 
+fn empty_block_from(
+	number: U256,
+) -> ethereum::BlockV2 {
+	let ommers = Vec::<ethereum::Header>::new();
+	let receipts = Vec::<ethereum::ReceiptV2>::new();
+	let receipts_root =
+		ethereum::util::ordered_trie_root(receipts.iter().map(|r| rlp::encode(r)));
+	let logs_bloom = ethereum_types::Bloom::default();
+	let partial_header = ethereum::PartialHeader {
+		parent_hash: H256::default(),
+		beneficiary: Default::default(),
+		state_root: Default::default(),
+		receipts_root,
+		logs_bloom,
+		difficulty: U256::zero(),
+		number,
+		gas_limit: U256::from(4_000_000),
+		gas_used: U256::zero(),
+		timestamp: Default::default(),
+		extra_data: Vec::new(),
+		mix_hash: H256::default(),
+		nonce: H64::default(),
+	};
+	ethereum::Block::new(partial_header, Default::default(), ommers)
+}
+
+
 fn rich_block_build(
 	block: ethereum::Block<EthereumTransaction>,
 	statuses: Vec<Option<TransactionStatus>>,
@@ -730,7 +757,31 @@ where
 				base_fee,
 				is_eip1559,
 			))),
-			_ => Ok(None),
+			_ => {
+                if let Some(header) = 
+                    self.client
+                        .header(id)
+                        .map_err(|_| internal_err(format!("Expect block header from id: {}", id)))?
+                {
+                    let block_number: u64 = UniqueSaturatedInto::<u64>::unique_saturated_into(
+                        *header.number(),
+                    );
+				    let eth_block = empty_block_from(block_number.into());
+				    let eth_hash =
+					    H256::from_slice(Keccak256::digest(&rlp::encode(&eth_block.header)).as_slice());
+
+				    Ok(Some(rich_block_build(
+					    eth_block,
+					    Default::default(),
+					    Some(eth_hash),
+					    full,
+                        None,
+                        false,
+				    )))
+                } else {
+                    Ok(None)
+                }
+            }
 		}
 	}
 
@@ -778,7 +829,24 @@ where
 					is_eip1559,
 				)))
 			}
-			_ => Ok(None),
+			_ => {
+                if let BlockNumber::Num(block_number) = number {
+				    let eth_block = empty_block_from(block_number.into());
+				    let eth_hash =
+					    H256::from_slice(Keccak256::digest(&rlp::encode(&eth_block.header)).as_slice());
+
+				    Ok(Some(rich_block_build(
+					    eth_block,
+					    Default::default(),
+					    Some(eth_hash),
+					    full,
+                        None,
+                        false,
+				    )))
+                } else {
+                    Ok(None)
+                }
+			}
 		}
 	}
 

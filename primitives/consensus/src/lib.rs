@@ -159,9 +159,5 @@ pub fn ensure_log(digest: &Digest) -> Result<(), FindLogError> {
 		}
 	}
 
-	if found {
-		Ok(())
-	} else {
-		Err(FindLogError::NotFound)
-	}
+	Ok(())
 }
