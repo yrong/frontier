@@ -728,14 +728,36 @@ where
 			let is_eip1559 = handler.is_eip1559(&id);
 
 			match (block, statuses) {
-				(Some(block), Some(statuses)) => Ok(Some(rich_block_build(
-					block,
-					statuses.into_iter().map(|s| Some(s)).collect(),
-					Some(hash),
-					full,
-					base_fee,
-					is_eip1559,
-				))),
+				(Some(block), Some(statuses)) => {
+					let mut rich_block = rich_block_build(
+						block,
+						statuses.into_iter().map(|s| Some(s)).collect(),
+						Some(hash),
+						full,
+						base_fee,
+						is_eip1559,
+					);
+					// Indexers heavily rely on the parent hash.
+					// Moonbase client-level patch for inconsistent runtime 1200 state.
+					let number = rich_block.inner.header.number.unwrap_or_default();
+					if rich_block.inner.header.parent_hash == H256::default() 
+						&& number > U256::zero() {
+							let id = BlockId::Hash(substrate_hash);
+							if let Ok(Some(header)) = client.header(id) {
+								let parent_hash = *header.parent_hash();
+	
+								let parent_id = BlockId::Hash(parent_hash);
+								let schema =
+									frontier_backend_client::onchain_storage_schema::<B, C, BE>(client.as_ref(), parent_id);
+								if let Some(block) = block_data_cache.current_block(schema, parent_hash).await {
+									rich_block.inner.header.parent_hash =
+										H256::from_slice(Keccak256::digest(&rlp::encode(&block.header)).as_slice());
+								}
+							}
+					}
+					Ok(Some(rich_block))
+
+				},
 				_ => Ok(None),
 			}
 		})
@@ -784,14 +806,34 @@ where
 					let hash =
 						H256::from_slice(Keccak256::digest(&rlp::encode(&block.header)).as_slice());
 
-					Ok(Some(rich_block_build(
+					let mut rich_block = rich_block_build(
 						block,
 						statuses.into_iter().map(|s| Some(s)).collect(),
 						Some(hash),
 						full,
 						base_fee,
 						is_eip1559,
-					)))
+					);
+					// Indexers heavily rely on the parent hash.
+					// Moonbase client-level patch for inconsistent runtime 1200 state.
+					let number = rich_block.inner.header.number.unwrap_or_default();
+					if rich_block.inner.header.parent_hash == H256::default() 
+						&& number > U256::zero() {
+						
+						let id = BlockId::Hash(substrate_hash);
+						if let Ok(Some(header)) = client.header(id) {
+							let parent_hash = *header.parent_hash();
+
+							let parent_id = BlockId::Hash(parent_hash);
+							let schema =
+								frontier_backend_client::onchain_storage_schema::<B, C, BE>(client.as_ref(), parent_id);
+							if let Some(block) = block_data_cache.current_block(schema, parent_hash).await {
+								rich_block.inner.header.parent_hash =
+									H256::from_slice(Keccak256::digest(&rlp::encode(&block.header)).as_slice());
+							}
+						}
+					}
+					Ok(Some(rich_block))
 				}
 				_ => Ok(None),
 			}
