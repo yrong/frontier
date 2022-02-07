@@ -722,14 +722,30 @@ where
 		let is_eip1559 = handler.is_eip1559(&id);
 
 		match (block, statuses) {
-			(Some(block), Some(statuses)) => Ok(Some(rich_block_build(
-				block,
-				statuses.into_iter().map(|s| Some(s)).collect(),
-				Some(hash),
-				full,
-				base_fee,
-				is_eip1559,
-			))),
+			(Some(block), Some(statuses)) => {
+				let mut rich_block = rich_block_build(
+					block,
+					statuses.into_iter().map(|s| Some(s)).collect(),
+					Some(hash),
+					full,
+					base_fee,
+					is_eip1559,
+				);
+				// Indexers heavily rely on the parent hash.
+				// Moonbase client-level patch for inconsistent runtime 1200 state.
+				let number = rich_block.inner.header.number.unwrap_or_default();
+				if rich_block.inner.header.parent_hash == H256::default() 
+					&& number > U256::zero() {
+					if let Ok(Some(parent)) = self.block_by_number(
+						BlockNumber::Num((number - 1).low_u64()),
+						false
+					) {
+						rich_block.inner.header.parent_hash = parent.inner.header.hash.unwrap_or_default();
+					}
+				}
+				Ok(Some(rich_block))
+
+			},
 			_ => Ok(None),
 		}
 	}
@@ -769,14 +785,27 @@ where
 				let hash =
 					H256::from_slice(Keccak256::digest(&rlp::encode(&block.header)).as_slice());
 
-				Ok(Some(rich_block_build(
+				let mut rich_block = rich_block_build(
 					block,
 					statuses.into_iter().map(|s| Some(s)).collect(),
 					Some(hash),
 					full,
 					base_fee,
 					is_eip1559,
-				)))
+				);
+				// Indexers heavily rely on the parent hash.
+				// Moonbase client-level patch for inconsistent runtime 1200 state.
+				let number = rich_block.inner.header.number.unwrap_or_default();
+				if rich_block.inner.header.parent_hash == H256::default() 
+					&& number > U256::zero() {
+					if let Ok(Some(parent)) = self.block_by_number(
+						BlockNumber::Num((number - 1).low_u64()),
+						false
+					) {
+						rich_block.inner.header.parent_hash = parent.inner.header.hash.unwrap_or_default();
+					}
+				}
+				Ok(Some(rich_block))
 			}
 			_ => Ok(None),
 		}
