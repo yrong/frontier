@@ -82,8 +82,10 @@ pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F: Formatter
 impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F> EthApi<B, C, P, CT, BE, H, A, F>
 where
 	C: ProvideRuntimeApi<B>,
-	C::Api: sp_api::ApiExt<B> + BlockBuilder<B>
-		+ ConvertTransactionRuntimeApi<B> + EthereumRuntimeRPCApi<B>,
+	C::Api: sp_api::ApiExt<B>
+		+ BlockBuilder<B>
+		+ ConvertTransactionRuntimeApi<B>
+		+ EthereumRuntimeRPCApi<B>,
 	B: BlockT<Hash = H256> + Send + Sync + 'static,
 	A: ChainApi<Block = B> + 'static,
 	C: Send + Sync + 'static,
@@ -540,8 +542,10 @@ impl<B, C, P, CT, BE, H: ExHashT, A, F> EthApiT for EthApi<B, C, P, CT, BE, H, A
 where
 	C: ProvideRuntimeApi<B> + StorageProvider<B, BE>,
 	C: HeaderBackend<B> + HeaderMetadata<B, Error = BlockChainError> + 'static,
-	C::Api: sp_api::ApiExt<B> + BlockBuilder<B>
-		+ ConvertTransactionRuntimeApi<B> + EthereumRuntimeRPCApi<B>,
+	C::Api: sp_api::ApiExt<B>
+		+ BlockBuilder<B>
+		+ ConvertTransactionRuntimeApi<B>
+		+ EthereumRuntimeRPCApi<B>,
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
 	B: BlockT<Hash = H256> + Send + Sync + 'static,
@@ -734,18 +738,16 @@ where
 				// Indexers heavily rely on the parent hash.
 				// Moonbase client-level patch for inconsistent runtime 1200 state.
 				let number = rich_block.inner.header.number.unwrap_or_default();
-				if rich_block.inner.header.parent_hash == H256::default() 
-					&& number > U256::zero() {
-					if let Ok(Some(parent)) = self.block_by_number(
-						BlockNumber::Num((number - 1).low_u64()),
-						false
-					) {
-						rich_block.inner.header.parent_hash = parent.inner.header.hash.unwrap_or_default();
+				if rich_block.inner.header.parent_hash == H256::default() && number > U256::zero() {
+					if let Ok(Some(parent)) =
+						self.block_by_number(BlockNumber::Num((number - 1).low_u64()), false)
+					{
+						rich_block.inner.header.parent_hash =
+							parent.inner.header.hash.unwrap_or_default();
 					}
 				}
 				Ok(Some(rich_block))
-
-			},
+			}
 			_ => Ok(None),
 		}
 	}
@@ -796,13 +798,12 @@ where
 				// Indexers heavily rely on the parent hash.
 				// Moonbase client-level patch for inconsistent runtime 1200 state.
 				let number = rich_block.inner.header.number.unwrap_or_default();
-				if rich_block.inner.header.parent_hash == H256::default() 
-					&& number > U256::zero() {
-					if let Ok(Some(parent)) = self.block_by_number(
-						BlockNumber::Num((number - 1).low_u64()),
-						false
-					) {
-						rich_block.inner.header.parent_hash = parent.inner.header.hash.unwrap_or_default();
+				if rich_block.inner.header.parent_hash == H256::default() && number > U256::zero() {
+					if let Ok(Some(parent)) =
+						self.block_by_number(BlockNumber::Num((number - 1).low_u64()), false)
+					{
+						rich_block.inner.header.parent_hash =
+							parent.inner.header.hash.unwrap_or_default();
 					}
 				}
 				Ok(Some(rich_block))
@@ -1046,40 +1047,58 @@ where
 		let transaction_hash = transaction.hash();
 
 		let block_id = BlockId::hash(self.client.info().best_hash);
-		let api_version = match self.client
-		.runtime_api()
-		.api_version::<dyn ConvertTransactionRuntimeApi<B>>(&block_id) {
+		let api_version = match self
+			.client
+			.runtime_api()
+			.api_version::<dyn ConvertTransactionRuntimeApi<B>>(&block_id)
+		{
 			Ok(api_version) => api_version,
-			_ => return Box::pin(future::err(internal_err("cannot access runtime api")))
+			_ => return Box::pin(future::err(internal_err("cannot access runtime api"))),
 		};
 
 		let extrinsic = match api_version {
-			Some(2) => match self.client.runtime_api()
-				.convert_transaction(&block_id, transaction) {
-					Ok(extrinsic) => extrinsic,
-					Err(_) => return Box::pin(future::err(internal_err("cannot access runtime api"))),
-				},
-			Some(1) => if let ethereum::TransactionV2::Legacy(legacy_transaction) = transaction {
-				#[allow(deprecated)]
-				match self.client.runtime_api()
-					.convert_transaction_before_version_2(&block_id, legacy_transaction) {
-						Ok(extrinsic) => extrinsic,
-						Err(_) => return Box::pin(future::err(internal_err("cannot access runtime api"))),
-					}
-			} else {
-				return Box::pin(future::err(internal_err("This runtime not support eth transactions v2")));
+			Some(2) => match self
+				.client
+				.runtime_api()
+				.convert_transaction(&block_id, transaction)
+			{
+				Ok(extrinsic) => extrinsic,
+				Err(_) => return Box::pin(future::err(internal_err("cannot access runtime api"))),
 			},
-			None => return Box::pin(future::err(internal_err("ConvertTransactionRuntimeApi not found"))),
-			_ => return Box::pin(future::err(internal_err("The version of ConvertTransactionRuntimeApi is not supported by this client"))),
+			Some(1) => {
+				if let ethereum::TransactionV2::Legacy(legacy_transaction) = transaction {
+					#[allow(deprecated)]
+					match self
+						.client
+						.runtime_api()
+						.convert_transaction_before_version_2(&block_id, legacy_transaction)
+					{
+						Ok(extrinsic) => extrinsic,
+						Err(_) => {
+							return Box::pin(future::err(internal_err("cannot access runtime api")))
+						}
+					}
+				} else {
+					return Box::pin(future::err(internal_err(
+						"This runtime not support eth transactions v2",
+					)));
+				}
+			}
+			None => {
+				return Box::pin(future::err(internal_err(
+					"ConvertTransactionRuntimeApi not found",
+				)))
+			}
+			_ => {
+				return Box::pin(future::err(internal_err(
+					"The version of ConvertTransactionRuntimeApi is not supported by this client",
+				)))
+			}
 		};
 
 		Box::pin(
 			self.pool
-				.submit_one(
-					&block_id,
-					TransactionSource::Local,
-					extrinsic,
-				)
+				.submit_one(&block_id, TransactionSource::Local, extrinsic)
 				.map_ok(move |_| transaction_hash)
 				.map_err(|err| internal_err(F::pool_error(err))),
 		)
@@ -1113,40 +1132,58 @@ where
 		let transaction_hash = transaction.hash();
 
 		let block_id = BlockId::hash(self.client.info().best_hash);
-		let api_version = match self.client
-		.runtime_api()
-		.api_version::<dyn ConvertTransactionRuntimeApi<B>>(&block_id) {
+		let api_version = match self
+			.client
+			.runtime_api()
+			.api_version::<dyn ConvertTransactionRuntimeApi<B>>(&block_id)
+		{
 			Ok(api_version) => api_version,
-			_ => return Box::pin(future::err(internal_err("cannot access runtime api")))
+			_ => return Box::pin(future::err(internal_err("cannot access runtime api"))),
 		};
 
 		let extrinsic = match api_version {
-			Some(2) => match self.client.runtime_api()
-				.convert_transaction(&block_id, transaction) {
-					Ok(extrinsic) => extrinsic,
-					Err(_) => return Box::pin(future::err(internal_err("cannot access runtime api"))),
-				},
-			Some(1) => if let ethereum::TransactionV2::Legacy(legacy_transaction) = transaction {
-				#[allow(deprecated)]
-				match self.client.runtime_api()
-					.convert_transaction_before_version_2(&block_id, legacy_transaction) {
-						Ok(extrinsic) => extrinsic,
-						Err(_) => return Box::pin(future::err(internal_err("cannot access runtime api"))),
-					}
-			} else {
-				return Box::pin(future::err(internal_err("This runtime not support eth transactions v2")));
+			Some(2) => match self
+				.client
+				.runtime_api()
+				.convert_transaction(&block_id, transaction)
+			{
+				Ok(extrinsic) => extrinsic,
+				Err(_) => return Box::pin(future::err(internal_err("cannot access runtime api"))),
 			},
-			None => return Box::pin(future::err(internal_err("ConvertTransactionRuntimeApi not found"))),
-			_ => return Box::pin(future::err(internal_err("The version of ConvertTransactionRuntimeApi is not supported by this client"))),
+			Some(1) => {
+				if let ethereum::TransactionV2::Legacy(legacy_transaction) = transaction {
+					#[allow(deprecated)]
+					match self
+						.client
+						.runtime_api()
+						.convert_transaction_before_version_2(&block_id, legacy_transaction)
+					{
+						Ok(extrinsic) => extrinsic,
+						Err(_) => {
+							return Box::pin(future::err(internal_err("cannot access runtime api")))
+						}
+					}
+				} else {
+					return Box::pin(future::err(internal_err(
+						"This runtime not support eth transactions v2",
+					)));
+				}
+			}
+			None => {
+				return Box::pin(future::err(internal_err(
+					"ConvertTransactionRuntimeApi not found",
+				)))
+			}
+			_ => {
+				return Box::pin(future::err(internal_err(
+					"The version of ConvertTransactionRuntimeApi is not supported by this client",
+				)))
+			}
 		};
 
 		Box::pin(
 			self.pool
-				.submit_one(
-					&block_id,
-					TransactionSource::Local,
-					extrinsic,
-				)
+				.submit_one(&block_id, TransactionSource::Local, extrinsic)
 				.map_ok(move |_| transaction_hash)
 				.map_err(|err| internal_err(F::pool_error(err))),
 		)
@@ -1204,13 +1241,11 @@ where
 			Some(amount) => amount,
 			None => {
 				let block = if api_version > 1 {
-					api
-						.current_block(&id)
+					api.current_block(&id)
 						.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
 				} else {
 					#[allow(deprecated)]
-					let legacy_block = api
-						.current_block_before_version_2(&id)
+					let legacy_block = api.current_block_before_version_2(&id)
 						.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?;
 					if let Some(block) = legacy_block {
 						Some(block.into())
@@ -1446,7 +1481,9 @@ where
 		if let Some(from) = request.from {
 			let gas_price = gas_price.unwrap_or_default();
 			if gas_price > U256::zero() {
-				let balance = self.client.runtime_api()
+				let balance = self
+					.client
+					.runtime_api()
 					.account_basic(&BlockId::Hash(best_hash), from)
 					.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
 					.balance;
@@ -1481,154 +1518,157 @@ where
 		let client = self.client.clone();
 
 		// Create a helper to check if a gas allowance results in an executable transaction
-		let executable =
-			move |request: CallRequest, gas_limit, api_version, estimate_mode| -> Result<ExecutableResult> {
-				let CallRequest {
-					from,
-					to,
-					gas,
-					value,
-					data,
-					nonce,
-					access_list,
-					..
-				} = request;
+		let executable = move |request: CallRequest,
+		                       gas_limit,
+		                       api_version,
+		                       estimate_mode|
+		      -> Result<ExecutableResult> {
+			let CallRequest {
+				from,
+				to,
+				gas,
+				value,
+				data,
+				nonce,
+				access_list,
+				..
+			} = request;
 
-				// Fresh instance per execution
-				let api = client.runtime_api();
+			// Fresh instance per execution
+			let api = client.runtime_api();
 
-				// Use request gas limit only if it less than gas_limit parameter
-				let gas_limit = core::cmp::min(gas.unwrap_or(gas_limit), gas_limit);
+			// Use request gas limit only if it less than gas_limit parameter
+			let gas_limit = core::cmp::min(gas.unwrap_or(gas_limit), gas_limit);
 
-				let data = data.map(|d| d.0).unwrap_or_default();
+			let data = data.map(|d| d.0).unwrap_or_default();
 
-				let (exit_reason, data, used_gas) = match to {
-					Some(to) => {
-						let info = if api_version == 1 {
-							// Legacy pre-london
-							#[allow(deprecated)]
-							api.call_before_version_2(
-								&BlockId::Hash(best_hash),
-								from.unwrap_or_default(),
-								to,
-								data,
-								value.unwrap_or_default(),
-								gas_limit,
-								gas_price,
-								nonce,
-								estimate_mode,
-							)
-							.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
-							.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?
-						} else if api_version < 4 {
-							// Post-london
-							#[allow(deprecated)]
-							api.call_before_version_4(
-								&BlockId::Hash(best_hash),
-								from.unwrap_or_default(),
-								to,
-								data,
-								value.unwrap_or_default(),
-								gas_limit,
-								max_fee_per_gas,
-								max_priority_fee_per_gas,
-								nonce,
-								estimate_mode,
-							)
-							.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
-							.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?
-						} else {
-							// Post-london + access list support
-							let access_list = access_list.unwrap_or_default();
-							api.call(
-								&BlockId::Hash(best_hash),
-								from.unwrap_or_default(),
-								to,
-								data,
-								value.unwrap_or_default(),
-								gas_limit,
-								max_fee_per_gas,
-								max_priority_fee_per_gas,
-								nonce,
-								estimate_mode,
-								Some(
-									access_list
-										.into_iter()
-										.map(|item| (item.address, item.storage_keys))
-										.collect(),
-								),
-							)
-							.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
-							.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?
-						};
+			let (exit_reason, data, used_gas) = match to {
+				Some(to) => {
+					let info = if api_version == 1 {
+						// Legacy pre-london
+						#[allow(deprecated)]
+						api.call_before_version_2(
+							&BlockId::Hash(best_hash),
+							from.unwrap_or_default(),
+							to,
+							data,
+							value.unwrap_or_default(),
+							gas_limit,
+							gas_price,
+							nonce,
+							estimate_mode,
+						)
+						.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
+						.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?
+					} else if api_version < 4 {
+						// Post-london
+						#[allow(deprecated)]
+						api.call_before_version_4(
+							&BlockId::Hash(best_hash),
+							from.unwrap_or_default(),
+							to,
+							data,
+							value.unwrap_or_default(),
+							gas_limit,
+							max_fee_per_gas,
+							max_priority_fee_per_gas,
+							nonce,
+							estimate_mode,
+						)
+						.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
+						.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?
+					} else {
+						// Post-london + access list support
+						let access_list = access_list.unwrap_or_default();
+						api.call(
+							&BlockId::Hash(best_hash),
+							from.unwrap_or_default(),
+							to,
+							data,
+							value.unwrap_or_default(),
+							gas_limit,
+							max_fee_per_gas,
+							max_priority_fee_per_gas,
+							nonce,
+							estimate_mode,
+							Some(
+								access_list
+									.into_iter()
+									.map(|item| (item.address, item.storage_keys))
+									.collect(),
+							),
+						)
+						.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
+						.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?
+					};
 
-						(info.exit_reason, info.value, info.used_gas)
-					}
-					None => {
-						let info = if api_version == 1 {
-							// Legacy pre-london
-							#[allow(deprecated)]
-							api.create_before_version_2(
-								&BlockId::Hash(best_hash),
-								from.unwrap_or_default(),
-								data,
-								value.unwrap_or_default(),
-								gas_limit,
-								gas_price,
-								nonce,
-								estimate_mode,
-							)
-							.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
-							.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?
-						} else if api_version < 4 {
-							// Post-london
-							#[allow(deprecated)]
-							api.create_before_version_4(
-								&BlockId::Hash(best_hash),
-								from.unwrap_or_default(),
-								data,
-								value.unwrap_or_default(),
-								gas_limit,
-								max_fee_per_gas,
-								max_priority_fee_per_gas,
-								nonce,
-								estimate_mode,
-							)
-							.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
-							.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?
-						} else {
-							// Post-london + access list support
-							let access_list = access_list.unwrap_or_default();
-							api.create(
-								&BlockId::Hash(best_hash),
-								from.unwrap_or_default(),
-								data,
-								value.unwrap_or_default(),
-								gas_limit,
-								max_fee_per_gas,
-								max_priority_fee_per_gas,
-								nonce,
-								estimate_mode,
-								Some(
-									access_list
-										.into_iter()
-										.map(|item| (item.address, item.storage_keys))
-										.collect(),
-								),
-							)
-							.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
-							.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?
-						};
+					(info.exit_reason, info.value, info.used_gas)
+				}
+				None => {
+					let info = if api_version == 1 {
+						// Legacy pre-london
+						#[allow(deprecated)]
+						api.create_before_version_2(
+							&BlockId::Hash(best_hash),
+							from.unwrap_or_default(),
+							data,
+							value.unwrap_or_default(),
+							gas_limit,
+							gas_price,
+							nonce,
+							estimate_mode,
+						)
+						.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
+						.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?
+					} else if api_version < 4 {
+						// Post-london
+						#[allow(deprecated)]
+						api.create_before_version_4(
+							&BlockId::Hash(best_hash),
+							from.unwrap_or_default(),
+							data,
+							value.unwrap_or_default(),
+							gas_limit,
+							max_fee_per_gas,
+							max_priority_fee_per_gas,
+							nonce,
+							estimate_mode,
+						)
+						.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
+						.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?
+					} else {
+						// Post-london + access list support
+						let access_list = access_list.unwrap_or_default();
+						api.create(
+							&BlockId::Hash(best_hash),
+							from.unwrap_or_default(),
+							data,
+							value.unwrap_or_default(),
+							gas_limit,
+							max_fee_per_gas,
+							max_priority_fee_per_gas,
+							nonce,
+							estimate_mode,
+							Some(
+								access_list
+									.into_iter()
+									.map(|item| (item.address, item.storage_keys))
+									.collect(),
+							),
+						)
+						.map_err(|err| internal_err(format!("runtime error: {:?}", err)))?
+						.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?
+					};
 
-						(info.exit_reason, Vec::new(), info.used_gas)
-					}
-				};
-				Ok(ExecutableResult {
-					exit_reason,
-					data,
-					used_gas,
-				})
+					(info.exit_reason, Vec::new(), info.used_gas)
+				}
 			};
+			Ok(ExecutableResult {
+				exit_reason,
+				data,
+				used_gas,
+			})
+		};
 		let api_version = if let Ok(Some(api_version)) =
 			self.client
 				.runtime_api()
@@ -1669,7 +1709,12 @@ where
 						data,
 						exit_reason,
 						used_gas: _,
-					} = executable(request.clone(), get_current_block_gas_limit()?, api_version, estimate_mode)?;
+					} = executable(
+						request.clone(),
+						get_current_block_gas_limit()?,
+						api_version,
+						estimate_mode,
+					)?;
 					match exit_reason {
 						ExitReason::Succeed(_) => {
 							return Err(internal_err(format!(
@@ -1746,14 +1791,15 @@ where
 				let api = self.client.runtime_api();
 				let best_block: BlockId<B> = BlockId::Hash(self.client.info().best_hash);
 
-				let api_version =
-					if let Ok(Some(api_version)) = api.api_version::<dyn EthereumRuntimeRPCApi<B>>(&best_block) {
-						api_version
-					} else {
-						return Err(internal_err(format!(
-							"failed to retrieve Runtime Api version"
-						)));
-					};
+				let api_version = if let Ok(Some(api_version)) =
+					api.api_version::<dyn EthereumRuntimeRPCApi<B>>(&best_block)
+				{
+					api_version
+				} else {
+					return Err(internal_err(format!(
+						"failed to retrieve Runtime Api version"
+					)));
+				};
 				// If the transaction is not yet mapped in the frontier db,
 				// check for it in the transaction pool.
 				let mut xts: Vec<<B as BlockT>::Extrinsic> = Vec::new();
@@ -1777,17 +1823,17 @@ where
 				);
 
 				let ethereum_transactions: Vec<EthereumTransaction> = if api_version > 1 {
-					api
-						.extrinsic_filter(&best_block, xts)
-						.map_err(|err| {
-							internal_err(format!("fetch runtime extrinsic filter failed: {:?}", err))
-						})?
+					api.extrinsic_filter(&best_block, xts).map_err(|err| {
+						internal_err(format!("fetch runtime extrinsic filter failed: {:?}", err))
+					})?
 				} else {
 					#[allow(deprecated)]
-					let legacy = api
-						.extrinsic_filter_before_version_2(&best_block, xts)
+					let legacy = api.extrinsic_filter_before_version_2(&best_block, xts)
 						.map_err(|err| {
-							internal_err(format!("fetch runtime extrinsic filter failed: {:?}", err))
+							internal_err(format!(
+								"fetch runtime extrinsic filter failed: {:?}",
+								err
+							))
 						})?;
 					legacy.into_iter().map(|tx| tx.into()).collect()
 				};
