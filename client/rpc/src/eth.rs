@@ -62,11 +62,10 @@ use codec::{self, Decode, Encode};
 pub use fc_rpc_core::{EthApiServer, EthFilterApiServer, NetApiServer, Web3ApiServer};
 use pallet_ethereum::EthereumStorageSchema;
 
-pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F: Formatter> {
+pub struct EthApi<B: BlockT, C, P, BE, H: ExHashT, A: ChainApi, F: Formatter> {
 	pool: Arc<P>,
 	graph: Arc<Pool<A>>,
 	client: Arc<C>,
-	convert_transaction: Option<CT>,
 	network: Arc<NetworkService<B, H>>,
 	is_authority: bool,
 	signers: Vec<Box<dyn EthSigner>>,
@@ -79,7 +78,7 @@ pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F: Formatter
 	_marker: PhantomData<(B, BE, F)>,
 }
 
-impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F> EthApi<B, C, P, CT, BE, H, A, F>
+impl<B: BlockT, C, P, BE, H: ExHashT, A: ChainApi, F> EthApi<B, C, P, BE, H, A, F>
 where
 	C: ProvideRuntimeApi<B>,
 	C::Api: sp_api::ApiExt<B> + BlockBuilder<B>
@@ -93,7 +92,6 @@ where
 		client: Arc<C>,
 		pool: Arc<P>,
 		graph: Arc<Pool<A>>,
-		convert_transaction: Option<CT>,
 		network: Arc<NetworkService<B, H>>,
 		signers: Vec<Box<dyn EthSigner>>,
 		overrides: Arc<OverrideHandle<B>>,
@@ -109,7 +107,6 @@ where
 			client,
 			pool,
 			graph,
-			convert_transaction,
 			network,
 			is_authority,
 			signers,
@@ -563,7 +560,7 @@ fn fee_details(
 	}
 }
 
-impl<B, C, P, CT, BE, H: ExHashT, A, F> EthApiT for EthApi<B, C, P, CT, BE, H, A, F>
+impl<B, C, P, BE, H: ExHashT, A, F> EthApiT for EthApi<B, C, P, BE, H, A, F>
 where
 	C: ProvideRuntimeApi<B> + StorageProvider<B, BE>,
 	C: HeaderBackend<B> + HeaderMetadata<B, Error = BlockChainError> + 'static,
@@ -575,7 +572,6 @@ where
 	C: Send + Sync + 'static,
 	P: TransactionPool<Block = B> + Send + Sync + 'static,
 	A: ChainApi<Block = B> + 'static,
-	CT: fp_rpc::ConvertTransaction<<B as BlockT>::Extrinsic> + Send + Sync + 'static,
 	F: Formatter,
 {
 	fn protocol_version(&self) -> Result<u64> {
@@ -668,28 +664,27 @@ where
 
 	fn balance(&self, address: H160, number: Option<BlockNumber>) -> Result<U256> {
 		let number = number.unwrap_or(BlockNumber::Latest);
+
 		if number == BlockNumber::Pending {
 			let api = pending_runtime_api(self.client.as_ref(), self.graph.as_ref())?;
 			return Ok(api
 				.account_basic(&BlockId::Hash(self.client.info().best_hash), address)
-				.map_err(|err| internal_err(format!("fetch runtime chain id failed: {:?}", err)))?
+				.map_err(|err| internal_err(format!("fetch account_basic failed: {:?}", err)))?
 				.balance
 				.into());
-		} else if let Ok(Some(id)) = frontier_backend_client::native_block_id::<B, C>(
+		}
+
+        if let Ok(Some(id)) = frontier_backend_client::native_block_id::<B, C>(
 			self.client.as_ref(),
 			self.backend.as_ref(),
 			Some(number),
 		) {
-			return Ok(self
-				.client
-				.runtime_api()
-				.account_basic(&id, address)
-				.map_err(|err| internal_err(format!("fetch runtime chain id failed: {:?}", err)))?
-				.balance
-				.into());
-		} else {
-			Ok(U256::zero())
-		}
+			if let Ok(account) = self.client.runtime_api().account_basic(&id, address) {
+                return Ok(account.balance.into())
+            }
+        }
+
+		Ok(U256::zero())
 	}
 
 	fn storage_at(&self, address: H160, index: U256, number: Option<BlockNumber>) -> Result<H256> {
@@ -757,31 +752,7 @@ where
 				base_fee,
 				is_eip1559,
 			))),
-			_ => {
-                if let Some(header) = 
-                    self.client
-                        .header(id)
-                        .map_err(|_| internal_err(format!("Expect block header from id: {}", id)))?
-                {
-                    let block_number: u64 = UniqueSaturatedInto::<u64>::unique_saturated_into(
-                        *header.number(),
-                    );
-				    let eth_block = empty_block_from(block_number.into());
-				    let eth_hash =
-					    H256::from_slice(Keccak256::digest(&rlp::encode(&eth_block.header)).as_slice());
-
-				    Ok(Some(rich_block_build(
-					    eth_block,
-					    Default::default(),
-					    Some(eth_hash),
-					    full,
-                        None,
-                        false,
-				    )))
-                } else {
-                    Ok(None)
-                }
-            }
+			_ => Ok(None),
 		}
 	}
 
