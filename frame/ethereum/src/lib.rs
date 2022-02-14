@@ -49,7 +49,7 @@ use sp_std::{marker::PhantomData, prelude::*};
 
 pub use ethereum::{
 	AccessListItem, BlockV2 as Block, LegacyTransactionMessage, Log, ReceiptV3 as Receipt,
-	TransactionAction, TransactionV2 as Transaction, TransactionV0 as LegacyTransaction
+	TransactionAction, TransactionV0 as LegacyTransaction, TransactionV2 as Transaction,
 };
 pub use fp_rpc::TransactionStatus;
 
@@ -180,6 +180,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(PhantomData<T>);
 
 	#[pallet::origin]
@@ -424,7 +425,11 @@ impl<T: Config> Pallet<T> {
 		let receipts_root =
 			ethereum::util::ordered_trie_root(receipts.iter().map(|r| rlp::encode(r)));
 		let partial_header = ethereum::PartialHeader {
-			parent_hash: Self::current_block_hash().unwrap_or_default(),
+			parent_hash: if block_number > U256::zero() {
+				BlockHash::<T>::get(U256::from(block_number - 1))
+			} else {
+				H256::default()
+			},
 			beneficiary: pallet_evm::Pallet::<T>::find_author(),
 			state_root: T::StateRoot::get(),
 			receipts_root,
@@ -701,11 +706,6 @@ impl<T: Config> Pallet<T> {
 	/// Get current block.
 	pub fn current_block() -> Option<ethereum::BlockV2> {
 		CurrentBlock::<T>::get()
-	}
-
-	/// Get current block hash
-	pub fn current_block_hash() -> Option<H256> {
-		Self::current_block().map(|block| block.header.hash())
 	}
 
 	/// Get receipts by number.
