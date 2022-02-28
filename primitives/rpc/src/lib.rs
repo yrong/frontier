@@ -88,6 +88,7 @@ sp_api::decl_runtime_apis! {
 			max_priority_fee_per_gas: Option<U256>,
 			nonce: Option<U256>,
 			estimate: bool,
+			access_list: Option<Vec<(H160, Vec<H256>)>>,
 		) -> Result<fp_evm::CallInfo, sp_runtime::DispatchError>;
 		fn call(
 			from: H160,
@@ -188,4 +189,15 @@ sp_api::decl_runtime_apis! {
 
 pub trait ConvertTransaction<E> {
 	fn convert_transaction(&self, transaction: ethereum::TransactionV2) -> E;
+}
+
+// `NoTransactionConverter` is a non-instantiable type (an enum with no variants),
+// so we are guaranteed at compile time that `NoTransactionConverter` can never be instantiated.
+pub enum NoTransactionConverter {}
+impl<E> ConvertTransaction<E> for NoTransactionConverter {
+	// `convert_transaction` is a method taking `&self` as a parameter, so it can only be called via an instance of type Self,
+	// so we are guaranteed at compile time that this method can never be called.
+	fn convert_transaction(&self, _transaction: ethereum::TransactionV2) -> E {
+		unreachable!()
+	}
 }

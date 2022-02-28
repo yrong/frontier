@@ -16,14 +16,20 @@
 // limitations under the License.
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub use pallet::*;
+pub use self::pallet::*;
+
+use frame_support::{
+	traits::Get,
+	weights::Weight
+};
+use sp_core::U256;
+use sp_runtime::Permill;
 
 #[frame_support::pallet]
 pub mod pallet {
+	use super::*;
 	use frame_support::{dispatch::DispatchResult, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
-	use sp_core::U256;
-	use sp_runtime::Permill;
 
 	pub trait BaseFeeThreshold {
 		fn lower() -> Permill;
@@ -211,7 +217,7 @@ pub mod pallet {
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn set_base_fee_per_gas(origin: OriginFor<T>, fee: U256) -> DispatchResult {
 			ensure_root(origin)?;
-			<BaseFeePerGas<T>>::put(fee);
+			let _ = Self::set_base_fee_per_gas_inner(fee);
 			Self::deposit_event(Event::NewBaseFeePerGas(fee));
 			Ok(())
 		}
@@ -219,7 +225,7 @@ pub mod pallet {
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn set_is_active(origin: OriginFor<T>, is_active: bool) -> DispatchResult {
 			ensure_root(origin)?;
-			<IsActive<T>>::put(is_active);
+			let _ = Self::set_is_active_inner(is_active);
 			Self::deposit_event(Event::IsActive(is_active));
 			Ok(())
 		}
@@ -227,7 +233,7 @@ pub mod pallet {
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn set_elasticity(origin: OriginFor<T>, elasticity: Permill) -> DispatchResult {
 			ensure_root(origin)?;
-			<Elasticity<T>>::put(elasticity);
+			let _ = Self::set_elasticity_inner(elasticity);
 			Self::deposit_event(Event::NewElasticity(elasticity));
 			Ok(())
 		}
@@ -240,13 +246,31 @@ pub mod pallet {
 	}
 }
 
+impl<T: Config> Pallet<T> {
+	pub fn set_base_fee_per_gas_inner(value: U256) -> Weight {
+		<BaseFeePerGas<T>>::put(value);
+		T::DbWeight::get().write
+	}
+	pub fn set_elasticity_inner(value: Permill) -> Weight {
+		<Elasticity<T>>::put(value);
+		T::DbWeight::get().write
+	}
+	pub fn set_is_active_inner(value: bool) -> Weight {
+		<IsActive<T>>::put(value);
+		T::DbWeight::get().write
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use crate as pallet_base_fee;
 
 	use frame_support::{
-		assert_ok, pallet_prelude::GenesisBuild, parameter_types, traits::OnFinalize,
+		assert_ok,
+		pallet_prelude::GenesisBuild,
+		parameter_types,
+		traits::{ConstU32, OnFinalize},
 		weights::DispatchClass,
 	};
 	use sp_core::{H256, U256};
@@ -310,6 +334,7 @@ mod tests {
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
+		type MaxConsumers = ConstU32<16>;
 	}
 
 	frame_support::parameter_types! {

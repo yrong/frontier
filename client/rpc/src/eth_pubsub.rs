@@ -18,7 +18,6 @@
 
 use log::warn;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use rustc_hex::ToHex;
 use sc_client_api::{
 	backend::{Backend, StateBackend, StorageProvider},
 	client::BlockchainEvents,
@@ -75,9 +74,10 @@ impl IdProvider for HexEncodedIdProvider {
 		let mut rng = thread_rng();
 		let id: String = iter::repeat(())
 			.map(|()| rng.sample(Alphanumeric))
+			.map(char::from)
 			.take(self.len)
 			.collect();
-		let out: String = id.as_bytes().to_hex();
+		let out = hex::encode(id);
 		format!("0x{}", out)
 	}
 }
@@ -353,23 +353,20 @@ where
 
 								let api = client.runtime_api();
 
-								let api_version = if let Ok(Some(api_version)) =
-									api.api_version::<dyn EthereumRuntimeRPCApi<B>>(&best_block)
-								{
-									api_version
-								} else {
-									return futures::future::ready(None);
-								};
+								let api_version =
+									if let Ok(Some(api_version)) = api.api_version::<dyn EthereumRuntimeRPCApi<B>>(&best_block) {
+										api_version
+									} else {
+										return futures::future::ready(None);
+									};
 
 								let xts = vec![xt.data().clone()];
-
+								
 								let txs: Option<Vec<EthereumTransaction>> = if api_version > 1 {
 									api.extrinsic_filter(&best_block, xts).ok()
 								} else {
 									#[allow(deprecated)]
-									if let Ok(legacy) =
-										api.extrinsic_filter_before_version_2(&best_block, xts)
-									{
+									if let Ok(legacy) = api.extrinsic_filter_before_version_2(&best_block, xts) {
 										Some(legacy.into_iter().map(|tx| tx.into()).collect())
 									} else {
 										None

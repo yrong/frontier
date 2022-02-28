@@ -1,18 +1,19 @@
-use crate::{CheckedExtrinsic, CheckedSignature, SelfContainedCall};
-use codec::{Decode, Encode};
 use frame_support::{
+	codec::{Decode, Encode},
+	scale_info::TypeInfo,
 	traits::ExtrinsicCall,
 	weights::{DispatchInfo, GetDispatchInfo},
 };
-use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{
 		self, Checkable, Extrinsic, ExtrinsicMetadata, IdentifyAccount, MaybeDisplay, Member,
 		SignedExtension,
 	},
 	transaction_validity::{InvalidTransaction, TransactionValidityError},
-	RuntimeDebug,
+	OpaqueExtrinsic, RuntimeDebug,
 };
+
+use crate::{CheckedExtrinsic, CheckedSignature, SelfContainedCall};
 
 /// A extrinsic right from the external world. This is unchecked and so
 /// can contain a signature.
@@ -163,5 +164,18 @@ impl<'a, Address: Decode, Signature: Decode, Call: Decode, Extra: SignedExtensio
 	{
 		<sp_runtime::generic::UncheckedExtrinsic<Address, Call, Signature, Extra>>::deserialize(de)
 			.map(Self)
+	}
+}
+
+impl<Address, Call, Signature, Extra> From<UncheckedExtrinsic<Address, Call, Signature, Extra>>
+	for OpaqueExtrinsic
+where
+	Address: Encode,
+	Signature: Encode,
+	Call: Encode,
+	Extra: SignedExtension,
+{
+	fn from(extrinsic: UncheckedExtrinsic<Address, Call, Signature, Extra>) -> Self {
+		extrinsic.0.into()
 	}
 }
