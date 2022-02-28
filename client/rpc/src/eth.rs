@@ -60,14 +60,15 @@ use std::{
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-	error_on_execution_failure, format::Formatter, frontier_backend_client, internal_err, overrides::OverrideHandle,
-	public_key, EthSigner, StorageOverride,
+	error_on_execution_failure, format::Formatter, frontier_backend_client, internal_err,
+	overrides::OverrideHandle, public_key, EthSigner, StorageOverride,
 };
 
 pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F: Formatter> {
 	pool: Arc<P>,
 	graph: Arc<Pool<A>>,
 	client: Arc<C>,
+	convert_transaction: Option<CT>,
 	network: Arc<NetworkService<B, H>>,
 	is_authority: bool,
 	signers: Vec<Box<dyn EthSigner>>,
@@ -80,7 +81,7 @@ pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F: Formatter
 	_marker: PhantomData<(B, BE, F)>,
 }
 
-impl<B: BlockT, C, P, BE, H: ExHashT, A: ChainApi, F> EthApi<B, C, P, BE, H, A, F>
+impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F> EthApi<B, C, P, CT, BE, H, A, F>
 where
 	C: ProvideRuntimeApi<B>,
 	C::Api: sp_api::ApiExt<B>
@@ -96,6 +97,7 @@ where
 		client: Arc<C>,
 		pool: Arc<P>,
 		graph: Arc<Pool<A>>,
+		convert_transaction: Option<CT>,
 		network: Arc<NetworkService<B, H>>,
 		signers: Vec<Box<dyn EthSigner>>,
 		overrides: Arc<OverrideHandle<B>>,
@@ -111,6 +113,7 @@ where
 			client,
 			pool,
 			graph,
+			convert_transaction,
 			network,
 			is_authority,
 			signers,
@@ -125,13 +128,10 @@ where
 	}
 }
 
-fn empty_block_from(
-	number: U256,
-) -> ethereum::BlockV2 {
+fn empty_block_from(number: U256) -> ethereum::BlockV2 {
 	let ommers = Vec::<ethereum::Header>::new();
 	let receipts = Vec::<ethereum::ReceiptV2>::new();
-	let receipts_root =
-		ethereum::util::ordered_trie_root(receipts.iter().map(|r| rlp::encode(r)));
+	let receipts_root = ethereum::util::ordered_trie_root(receipts.iter().map(|r| rlp::encode(r)));
 	let logs_bloom = ethereum_types::Bloom::default();
 	let partial_header = ethereum::PartialHeader {
 		parent_hash: H256::default(),
@@ -150,7 +150,6 @@ fn empty_block_from(
 	};
 	ethereum::Block::new(partial_header, Default::default(), ommers)
 }
-
 
 fn rich_block_build(
 	block: ethereum::Block<EthereumTransaction>,
@@ -381,18 +380,13 @@ where
 	let address_bloom_filter = FilteredParams::adresses_bloom_filter(&filter.address);
 	let topics_bloom_filter = FilteredParams::topics_bloom_filter(&topics_input);
 
-
-
 	while current_number <= to {
 		let id = BlockId::Number(current_number);
 		let substrate_hash = client
 			.expect_block_hash_from_id(&id)
 			.map_err(|_| internal_err(format!("Expect block number from id: {}", id)))?;
 
-		let schema = frontier_backend_client::onchain_storage_schema::<B, C, BE>(
-			client,
-			id,
-		);
+		let schema = frontier_backend_client::onchain_storage_schema::<B, C, BE>(client, id);
 
 		let block = block_data_cache.current_block(schema, substrate_hash).await;
 
@@ -526,7 +520,7 @@ fn fee_details(
 	}
 }
 
-impl<B, C, P, BE, H: ExHashT, A, F> EthApiT for EthApi<B, C, P, BE, H, A, F>
+impl<B, C, P, CT, BE, H: ExHashT, A, F> EthApiT for EthApi<B, C, P, CT, BE, H, A, F>
 where
 	C: ProvideRuntimeApi<B> + StorageProvider<B, BE>,
 	C: HeaderBackend<B> + HeaderMetadata<B, Error = BlockChainError> + 'static,
@@ -540,6 +534,7 @@ where
 	C: Send + Sync + 'static,
 	P: TransactionPool<Block = B> + Send + Sync + 'static,
 	A: ChainApi<Block = B> + 'static,
+	CT: fp_rpc::ConvertTransaction<<B as BlockT>::Extrinsic> + Send + Sync + 'static,
 	F: Formatter,
 {
 	fn protocol_version(&self) -> Result<u64> {
@@ -644,13 +639,10 @@ where
 			self.backend.as_ref(),
 			Some(number),
 		) {
-            if let Ok(account) = self
-				.client
-				.runtime_api()
-				.account_basic(&id, address) {
-			    return Ok(account.balance.into())
-            }
-        }
+			if let Ok(account) = self.client.runtime_api().account_basic(&id, address) {
+				return Ok(account.balance.into());
+			}
+		}
 
 		Ok(U256::zero())
 	}
@@ -728,24 +720,29 @@ where
 					// Indexers heavily rely on the parent hash.
 					// Moonbase client-level patch for inconsistent runtime 1200 state.
 					let number = rich_block.inner.header.number.unwrap_or_default();
-					if rich_block.inner.header.parent_hash == H256::default() 
-						&& number > U256::zero() {
-							let id = BlockId::Hash(substrate_hash);
-							if let Ok(Some(header)) = client.header(id) {
-								let parent_hash = *header.parent_hash();
-	
-								let parent_id = BlockId::Hash(parent_hash);
-								let schema =
-									frontier_backend_client::onchain_storage_schema::<B, C, BE>(client.as_ref(), parent_id);
-								if let Some(block) = block_data_cache.current_block(schema, parent_hash).await {
-									rich_block.inner.header.parent_hash =
-										H256::from_slice(Keccak256::digest(&rlp::encode(&block.header)).as_slice());
-								}
+					if rich_block.inner.header.parent_hash == H256::default()
+						&& number > U256::zero()
+					{
+						let id = BlockId::Hash(substrate_hash);
+						if let Ok(Some(header)) = client.header(id) {
+							let parent_hash = *header.parent_hash();
+
+							let parent_id = BlockId::Hash(parent_hash);
+							let schema = frontier_backend_client::onchain_storage_schema::<B, C, BE>(
+								client.as_ref(),
+								parent_id,
+							);
+							if let Some(block) =
+								block_data_cache.current_block(schema, parent_hash).await
+							{
+								rich_block.inner.header.parent_hash = H256::from_slice(
+									Keccak256::digest(&rlp::encode(&block.header)).as_slice(),
+								);
 							}
+						}
 					}
 					Ok(Some(rich_block))
-
-				},
+				}
 				_ => Ok(None),
 			}
 		})
@@ -805,40 +802,48 @@ where
 					// Indexers heavily rely on the parent hash.
 					// Moonbase client-level patch for inconsistent runtime 1200 state.
 					let number = rich_block.inner.header.number.unwrap_or_default();
-					if rich_block.inner.header.parent_hash == H256::default() 
-						&& number > U256::zero() {
-						
+					if rich_block.inner.header.parent_hash == H256::default()
+						&& number > U256::zero()
+					{
 						let id = BlockId::Hash(substrate_hash);
 						if let Ok(Some(header)) = client.header(id) {
 							let parent_hash = *header.parent_hash();
 
 							let parent_id = BlockId::Hash(parent_hash);
-							let schema =
-								frontier_backend_client::onchain_storage_schema::<B, C, BE>(client.as_ref(), parent_id);
-							if let Some(block) = block_data_cache.current_block(schema, parent_hash).await {
-								rich_block.inner.header.parent_hash =
-									H256::from_slice(Keccak256::digest(&rlp::encode(&block.header)).as_slice());
+							let schema = frontier_backend_client::onchain_storage_schema::<B, C, BE>(
+								client.as_ref(),
+								parent_id,
+							);
+							if let Some(block) =
+								block_data_cache.current_block(schema, parent_hash).await
+							{
+								rich_block.inner.header.parent_hash = H256::from_slice(
+									Keccak256::digest(&rlp::encode(&block.header)).as_slice(),
+								);
 							}
 						}
 					}
 					Ok(Some(rich_block))
 				}
-				_ => if let BlockNumber::Num(block_number) = number {
-				    let eth_block = empty_block_from(block_number.into());
-				    let eth_hash =
-					    H256::from_slice(Keccak256::digest(&rlp::encode(&eth_block.header)).as_slice());
+				_ => {
+					if let BlockNumber::Num(block_number) = number {
+						let eth_block = empty_block_from(block_number.into());
+						let eth_hash = H256::from_slice(
+							Keccak256::digest(&rlp::encode(&eth_block.header)).as_slice(),
+						);
 
-				    Ok(Some(rich_block_build(
-					    eth_block,
-					    Default::default(),
-					    Some(eth_hash),
-					    full,
-                        None,
-                        false,
-				    )))
-                } else {
-                    Ok(None)
-                },
+						Ok(Some(rich_block_build(
+							eth_block,
+							Default::default(),
+							Some(eth_hash),
+							full,
+							None,
+							false,
+						)))
+					} else {
+						Ok(None)
+					}
+				}
 			}
 		})
 	}
@@ -1098,7 +1103,7 @@ where
 			},
 			Some(1) => {
 				if let ethereum::TransactionV2::Legacy(legacy_transaction) = transaction {
-				    // To be compatible with runtimes that do not support transactions v2
+					// To be compatible with runtimes that do not support transactions v2
 					#[allow(deprecated)]
 					match self
 						.client
@@ -1204,6 +1209,15 @@ where
 					return Box::pin(future::err(internal_err(
 						"This runtime not support eth transactions v2",
 					)));
+				}
+			}
+			None => {
+				if let Some(ref convert_transaction) = self.convert_transaction {
+					convert_transaction.convert_transaction(transaction.clone())
+				} else {
+					return Box::pin(future::err(internal_err(
+					"No TransactionConverter is provided and the runtime api ConvertTransactionRuntimeApi is not found"
+				)));
 				}
 			}
 			_ => {
@@ -1700,8 +1714,14 @@ where
 							.map_err(|err| internal_err(format!("execution fatal: {:?}", err)))?
 						};
 
-					(info.exit_reason, Vec::new(), info.used_gas)
-				}
+						(info.exit_reason, Vec::new(), info.used_gas)
+					}
+				};
+				Ok(ExecutableResult {
+					exit_reason,
+					data,
+					used_gas,
+				})
 			};
 			let api_version = if let Ok(Some(api_version)) =
 				client

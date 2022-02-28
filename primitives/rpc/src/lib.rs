@@ -88,7 +88,6 @@ sp_api::decl_runtime_apis! {
 			max_priority_fee_per_gas: Option<U256>,
 			nonce: Option<U256>,
 			estimate: bool,
-			access_list: Option<Vec<(H160, Vec<H256>)>>,
 		) -> Result<fp_evm::CallInfo, sp_runtime::DispatchError>;
 		fn call(
 			from: H160,
