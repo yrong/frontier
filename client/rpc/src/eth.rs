@@ -64,11 +64,10 @@ use crate::{
 	overrides::OverrideHandle, public_key, EthSigner, StorageOverride,
 };
 
-pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F: Formatter> {
+pub struct EthApi<B: BlockT, C, P, BE, H: ExHashT, A: ChainApi, F: Formatter> {
 	pool: Arc<P>,
 	graph: Arc<Pool<A>>,
 	client: Arc<C>,
-	convert_transaction: Option<CT>,
 	network: Arc<NetworkService<B, H>>,
 	is_authority: bool,
 	signers: Vec<Box<dyn EthSigner>>,
@@ -81,7 +80,7 @@ pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F: Formatter
 	_marker: PhantomData<(B, BE, F)>,
 }
 
-impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F> EthApi<B, C, P, CT, BE, H, A, F>
+impl<B: BlockT, C, P, BE, H: ExHashT, A: ChainApi, F> EthApi<B, C, P, BE, H, A, F>
 where
 	C: ProvideRuntimeApi<B>,
 	C::Api: sp_api::ApiExt<B>
@@ -97,7 +96,6 @@ where
 		client: Arc<C>,
 		pool: Arc<P>,
 		graph: Arc<Pool<A>>,
-		convert_transaction: Option<CT>,
 		network: Arc<NetworkService<B, H>>,
 		signers: Vec<Box<dyn EthSigner>>,
 		overrides: Arc<OverrideHandle<B>>,
@@ -113,7 +111,6 @@ where
 			client,
 			pool,
 			graph,
-			convert_transaction,
 			network,
 			is_authority,
 			signers,
@@ -520,7 +517,7 @@ fn fee_details(
 	}
 }
 
-impl<B, C, P, CT, BE, H: ExHashT, A, F> EthApiT for EthApi<B, C, P, CT, BE, H, A, F>
+impl<B, C, P, BE, H: ExHashT, A, F> EthApiT for EthApi<B, C, P, BE, H, A, F>
 where
 	C: ProvideRuntimeApi<B> + StorageProvider<B, BE>,
 	C: HeaderBackend<B> + HeaderMetadata<B, Error = BlockChainError> + 'static,
@@ -534,7 +531,6 @@ where
 	C: Send + Sync + 'static,
 	P: TransactionPool<Block = B> + Send + Sync + 'static,
 	A: ChainApi<Block = B> + 'static,
-	CT: fp_rpc::ConvertTransaction<<B as BlockT>::Extrinsic> + Send + Sync + 'static,
 	F: Formatter,
 {
 	fn protocol_version(&self) -> Result<u64> {
@@ -1121,15 +1117,6 @@ where
 					)));
 				}
 			}
-			None => {
-				if let Some(ref convert_transaction) = self.convert_transaction {
-					convert_transaction.convert_transaction(transaction.clone())
-				} else {
-					return Box::pin(future::err(internal_err(
-						"No TransactionConverter is provided and the runtime api ConvertTransactionRuntimeApi is not found"
-					)));
-				}
-			}
 			_ => {
 				return Box::pin(future::err(internal_err(
 					"ConvertTransactionRuntimeApi version not supported",
@@ -1209,15 +1196,6 @@ where
 					return Box::pin(future::err(internal_err(
 						"This runtime not support eth transactions v2",
 					)));
-				}
-			}
-			None => {
-				if let Some(ref convert_transaction) = self.convert_transaction {
-					convert_transaction.convert_transaction(transaction.clone())
-				} else {
-					return Box::pin(future::err(internal_err(
-					"No TransactionConverter is provided and the runtime api ConvertTransactionRuntimeApi is not found"
-				)));
 				}
 			}
 			_ => {
