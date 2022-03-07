@@ -2343,7 +2343,11 @@ where
 			self.backend.as_ref(),
 			Some(newest_block),
 		) {
-			let header = self.client.header(id).unwrap().unwrap();
+			let header = if let Ok(Some(header)) = self.client.header(id) {
+				header
+			} else {
+				return Err(internal_err(format!("Block {} don't exist", id)));
+			};
 			// Highest and lowest block number within the requested range.
 			let highest = UniqueSaturatedInto::<u64>::unique_saturated_into(
 				self.client.number(header.hash()).unwrap().unwrap(),
