@@ -26,6 +26,7 @@ mod mining;
 mod state;
 mod submit;
 mod transaction;
+pub mod format;
 
 use std::{collections::BTreeMap, marker::PhantomData, sync::Arc};
 
@@ -55,9 +56,10 @@ use crate::{internal_err, overrides::OverrideHandle, public_key, signer::EthSign
 pub use self::{
 	cache::{EthBlockDataCache, EthTask},
 	filter::EthFilterApi,
+	format::Formatter,
 };
 
-pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> {
+pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F> {
 	pool: Arc<P>,
 	graph: Arc<Pool<A>>,
 	client: Arc<C>,
@@ -70,10 +72,10 @@ pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> {
 	block_data_cache: Arc<EthBlockDataCache<B>>,
 	fee_history_limit: u64,
 	fee_history_cache: FeeHistoryCache,
-	_marker: PhantomData<(B, BE)>,
+	_marker: PhantomData<(B, BE, F)>,
 }
 
-impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> EthApi<B, C, P, CT, BE, H, A> {
+impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F> EthApi<B, C, P, CT, BE, H, A, F> {
 	pub fn new(
 		client: Arc<C>,
 		pool: Arc<P>,
@@ -85,6 +87,7 @@ impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> EthApi<B, C, P, CT, BE, H
 		backend: Arc<fc_db::Backend<B>>,
 		is_authority: bool,
 		block_data_cache: Arc<EthBlockDataCache<B>>,
+		_formatter: F,
 		fee_history_limit: u64,
 		fee_history_cache: FeeHistoryCache,
 	) -> Self {
@@ -106,7 +109,7 @@ impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi> EthApi<B, C, P, CT, BE, H
 	}
 }
 
-impl<B, C, P, CT, BE, H: ExHashT, A> EthApiT for EthApi<B, C, P, CT, BE, H, A>
+impl<B, C, P, CT, BE, H: ExHashT, A, F> EthApiT for EthApi<B, C, P, CT, BE, H, A, F>
 where
 	B: BlockT<Hash = H256> + Send + Sync + 'static,
 	C: ProvideRuntimeApi<B> + StorageProvider<B, BE>,
@@ -117,6 +120,7 @@ where
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
 	A: ChainApi<Block = B> + 'static,
+	F: Send + Sync + 'static,
 {
 	// ########################################################################
 	// Client

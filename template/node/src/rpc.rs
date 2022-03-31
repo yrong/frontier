@@ -166,6 +166,7 @@ where
 		backend.clone(),
 		is_authority,
 		block_data_cache.clone(),
+		fc_rpc::format::Legacy,
 		fee_history_limit,
 		fee_history_cache,
 	)));

@@ -24,7 +24,7 @@ mod signer;
 mod web3;
 
 pub use self::{
-	eth::{EthApi, EthBlockDataCache, EthFilterApi, EthTask},
+	eth::{EthApi, EthBlockDataCache, EthFilterApi, EthTask, format},
 	eth_pubsub::{EthPubSubApi, HexEncodedIdProvider},
 	net::NetApi,
 	overrides::{
