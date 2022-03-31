@@ -18,6 +18,7 @@ jsonrpc-pubsub = "18.0"
 libsecp256k1 = "0.7"
 log = "0.4.8"
 lru = "0.6.6"
+prometheus = { version = "0.13.0", default-features = false }
 rand = "0.8"
 rlp = "0.5"
 tokio = { version = "1.14", features = ["sync"] }

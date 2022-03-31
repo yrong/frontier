@@ -54,7 +54,7 @@ use fp_rpc::{ConvertTransactionRuntimeApi, EthereumRuntimeRPCApi, TransactionSta
 use crate::{internal_err, overrides::OverrideHandle, public_key, signer::EthSigner};
 
 pub use self::{
-	cache::{EthBlockDataCache, EthTask},
+	cache::{EthBlockDataCacheTask, EthTask},
 	filter::EthFilterApi,
 	format::Formatter,
 };
@@ -69,7 +69,7 @@ pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F> {
 	signers: Vec<Box<dyn EthSigner>>,
 	overrides: Arc<OverrideHandle<B>>,
 	backend: Arc<fc_db::Backend<B>>,
-	block_data_cache: Arc<EthBlockDataCache<B>>,
+	block_data_cache: Arc<EthBlockDataCacheTask<B>>,
 	fee_history_limit: u64,
 	fee_history_cache: FeeHistoryCache,
 	_marker: PhantomData<(B, BE, F)>,
@@ -86,7 +86,7 @@ impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F> EthApi<B, C, P, CT, BE
 		overrides: Arc<OverrideHandle<B>>,
 		backend: Arc<fc_db::Backend<B>>,
 		is_authority: bool,
-		block_data_cache: Arc<EthBlockDataCache<B>>,
+		block_data_cache: Arc<EthBlockDataCacheTask<B>>,
 		_formatter: F,
 		fee_history_limit: u64,
 		fee_history_cache: FeeHistoryCache,

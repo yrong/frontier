@@ -38,7 +38,7 @@ use fc_rpc_core::{types::*, EthFilterApi as EthFilterApiT};
 use fp_rpc::{EthereumRuntimeRPCApi, TransactionStatus};
 use fp_storage::EthereumStorageSchema;
 
-use crate::{frontier_backend_client, internal_err, EthBlockDataCache};
+use crate::{frontier_backend_client, internal_err, EthBlockDataCacheTask};
 
 pub struct EthFilterApi<B: BlockT, C, BE> {
 	client: Arc<C>,
@@ -46,7 +46,7 @@ pub struct EthFilterApi<B: BlockT, C, BE> {
 	filter_pool: FilterPool,
 	max_stored_filters: usize,
 	max_past_logs: u32,
-	block_data_cache: Arc<EthBlockDataCache<B>>,
+	block_data_cache: Arc<EthBlockDataCacheTask<B>>,
 	_marker: PhantomData<BE>,
 }
 
@@ -57,7 +57,7 @@ impl<B: BlockT, C, BE> EthFilterApi<B, C, BE> {
 		filter_pool: FilterPool,
 		max_stored_filters: usize,
 		max_past_logs: u32,
-		block_data_cache: Arc<EthBlockDataCache<B>>,
+		block_data_cache: Arc<EthBlockDataCacheTask<B>>,
 	) -> Self {
 		Self {
 			client,
@@ -446,7 +446,7 @@ where
 async fn filter_range_logs<B: BlockT, C, BE>(
 	client: &C,
 	_backend: &fc_db::Backend<B>,
-	block_data_cache: &EthBlockDataCache<B>,
+	block_data_cache: &EthBlockDataCacheTask<B>,
 	ret: &mut Vec<Log>,
 	max_past_logs: u32,
 	filter: &Filter,
