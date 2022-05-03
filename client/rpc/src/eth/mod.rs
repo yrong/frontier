@@ -59,11 +59,10 @@ pub use self::{
 	format::Formatter,
 };
 
-pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F> {
+pub struct EthApi<B: BlockT, C, P, BE, H: ExHashT, A: ChainApi, F> {
 	pool: Arc<P>,
 	graph: Arc<Pool<A>>,
 	client: Arc<C>,
-	convert_transaction: Option<CT>,
 	network: Arc<NetworkService<B, H>>,
 	is_authority: bool,
 	signers: Vec<Box<dyn EthSigner>>,
@@ -75,12 +74,11 @@ pub struct EthApi<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F> {
 	_marker: PhantomData<(B, BE, F)>,
 }
 
-impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F> EthApi<B, C, P, CT, BE, H, A, F> {
+impl<B: BlockT, C, P, BE, H: ExHashT, A: ChainApi, F> EthApi<B, C, P, BE, H, A, F> {
 	pub fn new(
 		client: Arc<C>,
 		pool: Arc<P>,
 		graph: Arc<Pool<A>>,
-		convert_transaction: Option<CT>,
 		network: Arc<NetworkService<B, H>>,
 		signers: Vec<Box<dyn EthSigner>>,
 		overrides: Arc<OverrideHandle<B>>,
@@ -95,7 +93,6 @@ impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F> EthApi<B, C, P, CT, BE
 			client,
 			pool,
 			graph,
-			convert_transaction,
 			network,
 			is_authority,
 			signers,
@@ -109,14 +106,13 @@ impl<B: BlockT, C, P, CT, BE, H: ExHashT, A: ChainApi, F> EthApi<B, C, P, CT, BE
 	}
 }
 
-impl<B, C, P, CT, BE, H: ExHashT, A, F> EthApiT for EthApi<B, C, P, CT, BE, H, A, F>
+impl<B, C, P, BE, H: ExHashT, A, F> EthApiT for EthApi<B, C, P, BE, H, A, F>
 where
 	B: BlockT<Hash = H256> + Send + Sync + 'static,
 	C: ProvideRuntimeApi<B> + StorageProvider<B, BE>,
 	C: HeaderBackend<B> + Send + Sync + 'static,
 	C::Api: BlockBuilderApi<B> + ConvertTransactionRuntimeApi<B> + EthereumRuntimeRPCApi<B>,
 	P: TransactionPool<Block = B> + Send + Sync + 'static,
-	CT: fp_rpc::ConvertTransaction<<B as BlockT>::Extrinsic> + Send + Sync + 'static,
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
 	A: ChainApi<Block = B> + 'static,

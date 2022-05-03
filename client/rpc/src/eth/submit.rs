@@ -38,7 +38,7 @@ use fp_rpc::{ConvertTransaction, ConvertTransactionRuntimeApi, EthereumRuntimeRP
 
 use crate::{eth::{EthApi, Formatter}, internal_err};
 
-impl<B, C, P, CT, BE, H: ExHashT, A: ChainApi, F: Formatter> EthApi<B, C, P, CT, BE, H, A, F>
+impl<B, C, P, BE, H: ExHashT, A: ChainApi, F: Formatter> EthApi<B, C, P, BE, H, A, F>
 where
 	B: BlockT<Hash = H256> + Send + Sync + 'static,
 	C: ProvideRuntimeApi<B> + StorageProvider<B, BE>,
@@ -47,7 +47,6 @@ where
 	BE: Backend<B> + 'static,
 	BE::State: StateBackend<BlakeTwo256>,
 	P: TransactionPool<Block = B> + Send + Sync + 'static,
-	CT: ConvertTransaction<<B as BlockT>::Extrinsic> + Send + Sync + 'static,
 	A: ChainApi<Block = B> + 'static,
 {
 	pub fn send_transaction(&self, request: TransactionRequest) -> BoxFuture<Result<H256>> {
@@ -191,15 +190,6 @@ where
 					)));
 				}
 			}
-			None => {
-				if let Some(ref convert_transaction) = self.convert_transaction {
-					convert_transaction.convert_transaction(transaction.clone())
-				} else {
-					return Box::pin(future::err(internal_err(
-						"No TransactionConverter is provided and the runtime api ConvertTransactionRuntimeApi is not found"
-					)));
-				}
-			}
 			_ => {
 				return Box::pin(future::err(internal_err(
 					"ConvertTransactionRuntimeApi version not supported",
@@ -278,15 +268,6 @@ where
 				} else {
 					return Box::pin(future::err(internal_err(
 						"This runtime not support eth transactions v2",
-					)));
-				}
-			}
-			None => {
-				if let Some(ref convert_transaction) = self.convert_transaction {
-					convert_transaction.convert_transaction(transaction.clone())
-				} else {
-					return Box::pin(future::err(internal_err(
-						"No TransactionConverter is provided and the runtime api ConvertTransactionRuntimeApi is not found"
 					)));
 				}
 			}
