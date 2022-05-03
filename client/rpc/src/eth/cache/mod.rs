@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod tests;
 pub mod lru_cache;
+mod tests;
 
 use std::{
 	collections::{BTreeMap, HashMap},
@@ -49,8 +49,8 @@ use fp_rpc::{EthereumRuntimeRPCApi, TransactionStatus};
 use fp_storage::EthereumStorageSchema;
 
 use crate::{
-	frontier_backend_client,
 	eth::cache::lru_cache::LRUCacheByteLimited,
+	frontier_backend_client,
 	overrides::{OverrideHandle, StorageOverride},
 };
 

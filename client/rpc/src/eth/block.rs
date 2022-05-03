@@ -32,7 +32,7 @@ use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 use fc_rpc_core::types::*;
 
 use crate::{
-	eth::{rich_block_build, EthApi},
+	eth::{empty_block_from, rich_block_build, EthApi},
 	frontier_backend_client, internal_err,
 };
 
@@ -87,23 +87,28 @@ where
 					// Moonbase client-level patch for inconsistent runtime 1200 state.
 					let number = rich_block.inner.header.number.unwrap_or_default();
 					if rich_block.inner.header.parent_hash == H256::default()
-						&& number > U256::zero() {
+						&& number > U256::zero()
+					{
+						let id = BlockId::Hash(substrate_hash);
+						if let Ok(Some(header)) = client.header(id) {
+							let parent_hash = *header.parent_hash();
 
-							let id = BlockId::Hash(substrate_hash);
-							if let Ok(Some(header)) = client.header(id) {
-								let parent_hash = *header.parent_hash();
-
-								let parent_id = BlockId::Hash(parent_hash);
-								let schema =
-									frontier_backend_client::onchain_storage_schema::<B, C, BE>(client.as_ref(), parent_id);
-								if let Some(block) = block_data_cache.current_block(schema, parent_hash).await {
-									rich_block.inner.header.parent_hash =
-										H256::from_slice(keccak_256(&rlp::encode(&block.header)).as_slice());
-								}
+							let parent_id = BlockId::Hash(parent_hash);
+							let schema = frontier_backend_client::onchain_storage_schema::<B, C, BE>(
+								client.as_ref(),
+								parent_id,
+							);
+							if let Some(block) =
+								block_data_cache.current_block(schema, parent_hash).await
+							{
+								rich_block.inner.header.parent_hash = H256::from_slice(
+									keccak_256(&rlp::encode(&block.header)).as_slice(),
+								);
 							}
+						}
 					}
 					Ok(Some(rich_block))
-				},
+				}
 				_ => Ok(None),
 			}
 		})
@@ -161,24 +166,45 @@ where
 					// Moonbase client-level patch for inconsistent runtime 1200 state.
 					let number = rich_block.inner.header.number.unwrap_or_default();
 					if rich_block.inner.header.parent_hash == H256::default()
-						&& number > U256::zero() {
+						&& number > U256::zero()
+					{
+						let id = BlockId::Hash(substrate_hash);
+						if let Ok(Some(header)) = client.header(id) {
+							let parent_hash = *header.parent_hash();
 
-							let id = BlockId::Hash(substrate_hash);
-							if let Ok(Some(header)) = client.header(id) {
-								let parent_hash = *header.parent_hash();
-
-								let parent_id = BlockId::Hash(parent_hash);
-								let schema =
-									frontier_backend_client::onchain_storage_schema::<B, C, BE>(client.as_ref(), parent_id);
-								if let Some(block) = block_data_cache.current_block(schema, parent_hash).await {
-									rich_block.inner.header.parent_hash =
-										H256::from_slice(keccak_256(&rlp::encode(&block.header)).as_slice());
-								}
+							let parent_id = BlockId::Hash(parent_hash);
+							let schema = frontier_backend_client::onchain_storage_schema::<B, C, BE>(
+								client.as_ref(),
+								parent_id,
+							);
+							if let Some(block) =
+								block_data_cache.current_block(schema, parent_hash).await
+							{
+								rich_block.inner.header.parent_hash = H256::from_slice(
+									keccak_256(&rlp::encode(&block.header)).as_slice(),
+								);
 							}
+						}
 					}
 					Ok(Some(rich_block))
-				},
-				_ => Ok(None),
+				}
+				_ => {
+					if let BlockNumber::Num(block_number) = number {
+						let eth_block = empty_block_from(block_number.into());
+						let eth_hash = H256::from_slice(
+							keccak_256(&rlp::encode(&eth_block.header)).as_slice(),
+						);
+						Ok(Some(rich_block_build(
+							eth_block,
+							Default::default(),
+							Some(eth_hash),
+							full,
+							None,
+						)))
+					} else {
+						Ok(None)
+					}
+				}
 			}
 		})
 	}

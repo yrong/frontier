@@ -36,7 +36,10 @@ use sp_runtime::{
 use fc_rpc_core::types::*;
 use fp_rpc::{ConvertTransaction, ConvertTransactionRuntimeApi, EthereumRuntimeRPCApi};
 
-use crate::{eth::{EthApi, Formatter}, internal_err};
+use crate::{
+	eth::{EthApi, Formatter},
+	internal_err,
+};
 
 impl<B, C, P, BE, H: ExHashT, A: ChainApi, F: Formatter> EthApi<B, C, P, BE, H, A, F>
 where
