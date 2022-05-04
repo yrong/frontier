@@ -28,10 +28,9 @@ use std::{
 use ethereum::BlockV2 as EthereumBlock;
 use ethereum_types::{H256, U256};
 use futures::StreamExt;
-use lru::LruCache;
 use tokio::sync::{mpsc, oneshot};
 
-use codec::{Decode, Encode};
+use codec::Encode;
 use sc_client_api::{
 	backend::{Backend, StateBackend, StorageProvider},
 	client::BlockchainEvents,
