@@ -137,5 +137,9 @@ pub fn find_log(digest: &Digest) -> Result<Log, FindLogError> {
 }
 
 pub fn ensure_log(digest: &Digest) -> Result<(), FindLogError> {
-	find_log(digest).map(|_log| ())
+    // Ensure log have no duplication items
+	match find_log(digest) {
+        Err(FindLogError::MultipleLogs) => Err(FindLogError::MultipleLogs),
+        _ => Ok(()),
+    }
 }
