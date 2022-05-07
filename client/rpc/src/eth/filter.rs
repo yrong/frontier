@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{collections::BTreeMap, marker::PhantomData, sync::Arc, time};
+use std::{marker::PhantomData, sync::Arc, time};
 
 use ethereum::BlockV2 as EthereumBlock;
 use ethereum_types::{H256, U256};
@@ -28,15 +28,11 @@ use sp_blockchain::HeaderBackend;
 use sp_core::hashing::keccak_256;
 use sp_runtime::{
 	generic::BlockId,
-	traits::{
-		BlakeTwo256, Block as BlockT, Header as HeaderT, NumberFor, One, Saturating,
-		UniqueSaturatedInto,
-	},
+	traits::{BlakeTwo256, Block as BlockT, NumberFor, One, Saturating, UniqueSaturatedInto},
 };
 
 use fc_rpc_core::{types::*, EthFilterApi as EthFilterApiT};
 use fp_rpc::{EthereumRuntimeRPCApi, TransactionStatus};
-use fp_storage::EthereumStorageSchema;
 
 use crate::{frontier_backend_client, internal_err, EthBlockDataCacheTask};
 
