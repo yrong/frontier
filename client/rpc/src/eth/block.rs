@@ -135,9 +135,8 @@ where
 			_ => {
 				if let BlockNumber::Num(block_number) = number {
 					let eth_block = empty_block_from(block_number.into());
-					let eth_hash = H256::from_slice(
-						keccak_256(&rlp::encode(&eth_block.header)).as_slice(),
-					);
+					let eth_hash =
+						H256::from_slice(keccak_256(&rlp::encode(&eth_block.header)).as_slice());
 					Ok(Some(rich_block_build(
 						eth_block,
 						Default::default(),
