@@ -627,6 +627,10 @@ impl<'vicinity, 'config, T: Config> StackStateT<'config>
 		let source = T::AddressMapping::into_account_id(transfer.source);
 		let target = T::AddressMapping::into_account_id(transfer.target);
 
+        if transfer.value > U256::from(u128::max_value()) {
+            return Err(ExitError::OutOfFund)
+        }
+
 		T::Currency::transfer(
 			&source,
 			&target,
