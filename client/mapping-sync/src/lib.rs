@@ -25,6 +25,7 @@ pub use worker::{MappingSyncWorker, SyncStrategy};
 use fp_consensus::FindLogError;
 use fp_rpc::EthereumRuntimeRPCApi;
 use sc_client_api::BlockOf;
+use log::debug;
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{
@@ -69,25 +70,36 @@ where
 {
 	let id = BlockId::Hash(header.hash());
 
+	debug!(target: "mapping-sync", "sync_genesis_block started");
+
 	let has_api = client
 		.runtime_api()
 		.has_api::<dyn EthereumRuntimeRPCApi<Block>>(&id)
 		.map_err(|e| format!("{:?}", e))?;
 
+	debug!(target: "mapping-sync", "sync_genesis_block has_api? {:?}", has_api);
+
 	if has_api {
+		debug!(target: "mapping-sync", "sync_genesis_block pass 1");
 		let block = client
 			.runtime_api()
 			.current_block(&id)
 			.map_err(|e| format!("{:?}", e))?;
+
+			debug!(target: "mapping-sync", "sync_genesis_block pass 2");
 		let block_hash = block
 			.ok_or_else(|| "Ethereum genesis block not found".to_string())?
 			.header
 			.hash();
+
+		debug!(target: "mapping-sync", "sync_genesis_block pass 3");
 		let mapping_commitment = fc_db::MappingCommitment::<Block> {
 			block_hash: header.hash(),
 			ethereum_block_hash: block_hash,
 			ethereum_transaction_hashes: Vec::new(),
 		};
+
+		debug!(target: "mapping-sync", "sync_genesis_block pass 4");
 		backend.mapping().write_hashes(mapping_commitment)?;
 	} else {
 		backend.mapping().write_none(header.hash())?;
@@ -138,6 +150,7 @@ where
 	};
 
 	if operating_header.number() == &Zero::zero() {
+		debug!(target: "mapping-sync", "Genesis block sync attempting.");
 		sync_genesis_block(client, frontier_backend, &operating_header)?;
 
 		frontier_backend
