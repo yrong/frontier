@@ -674,7 +674,7 @@ pub fn error_on_execution_failure(reason: &ExitReason, data: &[u8]) -> Result<()
 			// A minimum size of error function selector (4) + offset (32) + string length (32)
 			// should contain a utf-8 encoded revert reason.
 			if data.len() > 68 {
-				let message_len = data[36..68].iter().sum::<u8>();
+				let message_len: u32 = data[36..68].iter().map(|&b| b as u32).sum();
 				if data.len() >= 68 + message_len as usize {
 					let body: &[u8] = &data[68..68 + message_len as usize];
 					if let Ok(reason) = std::str::from_utf8(body) {
